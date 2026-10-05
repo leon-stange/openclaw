@@ -5,7 +5,52 @@ Auf Leons ausdrücklichen Wunsch wurden die aktiven Server-Regeln in `USER.md`
 um verlässliche, ausdrücklich versendete Textbestätigungen für Anrufe und
 Sprachnachrichten an die andere Person ergänzt.
 
-## Aktuelle Regeln
+## Zustellungsfehler am 05.10.2026 um 20:48–20:50
+
+Beide `/new`-Bestätigungen sowie die normalen Antworten auf „test“ und
+„Hallo?“ scheiterten beim automatischen WhatsApp-Versand. Die Agentenantworten
+wurden korrekt erzeugt und im Dashboard gespeichert. Der ausführliche Log unter
+`/tmp/openclaw/` enthält für alle vier Versuche:
+
+```text
+PlatformMessageNotDispatchedError:
+The reply channel changed or cannot preserve its sender; delivery was not started.
+```
+
+Der Fehler entsteht in `withDurableDeliveryRuntime` vor dem Plattformversand.
+Der Zweig prüft den Übergang von der ursprünglichen Plugin-Registry zur aktuellen
+Registry, darunter Kanalregistrierung, Konfiguration und Senderübergabe. Welcher
+einzelne Vergleich scheiterte, protokolliert diese Version nicht. Um 20:36 gab es
+Konfigurations-Neuladungen; eine veraltete WhatsApp-Laufzeit ist daher die
+naheliegende Ursache. Dies ist kein Modell-, Outlook- oder ElevenLabs-Fehler.
+
+Konfigurations-Neuladungen sind der wahrscheinliche Auslöser dieses Vorfalls.
+Es ist nicht belegt, dass der Fehler ausschließlich nach Konfigurationsänderungen
+auftreten kann. Nach Änderungen an der Kanal- oder Plugin-Laufzeit daher den
+Gateway kontrolliert neu starten und anschließend eine neue eingehende
+WhatsApp-Nachricht mit automatischer Antwort prüfen. Ein aktiver Dienst oder
+eine Antwort im Dashboard allein bestätigt keine WhatsApp-Zustellung.
+
+Die spätere englische Meldung „I couldn’t confirm whether my previous reply…“
+ist OpenClaws `PENDING_DELIVERY_NOTICE`. Sie weist auf einen unklaren
+Zustellungsabschluss hin und sendet die alte Antwort nicht automatisch erneut.
+Explizite Nachrichten-Tool-Sendungen funktionierten im selben Zeitraum weiterhin.
+
+Gateway am 05.10.2026 um 20:55:49 kontrolliert neu gestartet; sauber beendet,
+neuer Dienstprozess aktiv. Gateway meldet um 20:56:25 `ready`, WhatsApp um
+20:56:34 `Listening for WhatsApp inbound messages`. Keine Sicherheitsprüfung
+abgeschaltet, keine alten Anrufe oder Nachrichten erneut ausgelöst. Ein neuer eingehender WhatsApp-Test
+muss die automatische Zustellung nach dem Neustart bestätigen.
+
+Separater Befund beim Sprachversand um 20:51: Das Tool lieferte die Nachrichten-ID
+unter `result.messageId` und `messageDelivery.primaryPlatformMessageId`.
+Jarvis prüfte zunächst nur die oberste Ergebnisebene und meldete deshalb trotz
+erfolgreichen Versands einen Fehler; danach sendete er eine Korrektur. Bei
+Tool-Suchen außerdem den Handle anhand `callableName === 'message'` auswählen,
+nicht blind den ersten Suchtreffer verwenden. Das erklärt diesen zusätzlichen
+Toolfehler, nicht die fehlenden normalen Antworten um 20:48.
+
+## Antwortverhalten
 
 | Auftrag | Antwort |
 | --- | --- |
