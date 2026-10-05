@@ -1,0 +1,112 @@
+{
+  "id": "whatsapp-call-contact",
+  "name": "WhatsApp Call Contact",
+  "description": "Lets the OpenClaw owner call only pre-approved WhatsApp contacts. Audio is synthesized with ElevenLabs and delivered by MeowCaller.",
+  "version": "0.1.2",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "authorizedCaller",
+      "contacts",
+      "voiceId"
+    ],
+    "properties": {
+      "authorizedCaller": {
+        "type": "string",
+        "pattern": "^\\+[1-9]\\d{7,14}$",
+        "description": "Setup reference for the intended owner number. Runtime authorization uses OpenClaw senderIsOwner / commands.ownerAllowFrom so WhatsApp LID senders work correctly."
+      },
+      "contacts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "phone"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "phone": {
+              "type": "string",
+              "pattern": "^\\+[1-9]\\d{7,14}$"
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "maxItems": 10
+            }
+          },
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 50,
+        "description": "Pre-approved WhatsApp call targets. The model never supplies a phone number directly."
+      },
+      "voiceId": {
+        "type": "string",
+        "minLength": 1,
+        "description": "ElevenLabs voice id."
+      },
+      "model": {
+        "type": "string",
+        "minLength": 1,
+        "description": "ElevenLabs TTS model id."
+      },
+      "accountId": {
+        "type": "string",
+        "minLength": 1,
+        "description": "MeowCaller/OpenClaw WhatsApp call account id."
+      },
+      "meowcallerPath": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Path or command name for meowcaller."
+      },
+      "maxMessageChars": {
+        "type": "integer",
+        "minimum": 50,
+        "maximum": 1000
+      },
+      "maxCallsPer10Minutes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20
+      },
+      "dailyBriefing": {
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "pattern": "^[a-f0-9-]{36}$"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  },
+  "contracts": {
+    "tools": [
+      "whatsapp_call_contact",
+      "whatsapp_call_contacts",
+      "whatsapp_call_daily_briefing"
+    ]
+  }
+}

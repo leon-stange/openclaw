@@ -1,0 +1,790 @@
+JARVIS / OPENCLAW AUF UBUNTU 24.04 NEU AUFSETZEN
+=================================================
+
+Ziel
+----
+Diese Anleitung setzt den aktuellen Jarvis-Stand auf einem frisch installierten
+Ubuntu-24.04-Server für den Benutzer "leon" neu auf.
+
+Geplanter Stand:
+- OpenClaw 2026.9.8
+- Benutzer: leon
+- OpenAI / ChatGPT Login
+- Modell: openai/gpt-5.6-sol
+- WhatsApp
+- WhatsApp-Allowlist
+- OpenClaw-Owner-Allowlist
+- ElevenLabs TTS
+- MeowCaller
+- WhatsApp-Anruf an den aktuellen Absender
+- eigenes Plugin "whatsapp-call-contact"
+- freigegebene Kontakte, z. B. Annka
+- systemd Autostart ohne SSH-Login
+
+WICHTIG
+-------
+1. OpenClaw immer als Benutzer "leon" installieren und ausführen.
+2. "sudo" nur für Systempakete, Go-Installation und loginctl verwenden.
+3. Port 18789 NICHT öffentlich im Internet freigeben.
+4. API-Keys niemals direkt als Klartext in Shell-Befehle schreiben.
+5. Telefonnummern unten durch echte Werte ersetzen.
+6. Die Windows-spezifischen OpenClaw-Patches werden unter Ubuntu NICHT benötigt.
+
+
+=================================================
+1. BENUTZER UND SYSTEM PRÜFEN
+=================================================
+
+Prüfen, ob du wirklich als leon angemeldet bist:
+
+whoami
+
+Erwartet:
+
+leon
+
+System prüfen:
+
+uname -m
+lsb_release -ds
+
+Pakete aktualisieren und Grundwerkzeuge installieren:
+
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y curl git unzip build-essential ca-certificates jq
+
+
+=================================================
+2. OPENCLAW 2026.9.8 INSTALLIEREN
+=================================================
+
+OpenClaw exakt in Version 2026.9.8 installieren:
+
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --version 2026.9.8 --no-onboard --verify
+
+Shell neu laden:
+
+exec "$SHELL" -l
+
+Versionen prüfen:
+
+openclaw --version
+node --version
+npm --version
+
+OpenClaw soll Version 2026.9.8 anzeigen.
+
+
+=================================================
+3. OPENAI / CHATGPT LOGIN
+=================================================
+
+Für einen Headless-Server empfiehlt sich Device-Code-Login:
+
+openclaw models auth login --provider openai --device-code
+
+Den angezeigten Link auf deinem normalen PC öffnen und den Code eingeben.
+
+Danach prüfen:
+
+openclaw models auth list --provider openai
+
+
+=================================================
+4. GPT-5.6 SOL ALS STANDARDMODELL SETZEN
+=================================================
+
+Konfiguration vorbereiten:
+
+cat > /tmp/jarvis-model.json <<'EOF'
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol"
+      },
+      "models": {
+        "openai/gpt-5.6-sol": {
+          "agentRuntime": {
+            "id": "openclaw"
+          }
+        }
+      }
+    }
+  }
+}
+EOF
+
+Dry-Run:
+
+openclaw config patch --file /tmp/jarvis-model.json --dry-run
+
+Wenn erfolgreich:
+
+openclaw config patch --file /tmp/jarvis-model.json
+
+Prüfen:
+
+openclaw models status
+
+
+=================================================
+5. WHATSAPP-PLUGIN INSTALLIEREN
+=================================================
+
+WhatsApp-Plugin installieren:
+
+openclaw plugins install @openclaw/whatsapp
+
+
+=================================================
+6. WHATSAPP ALLOWLIST + OWNER EINRICHTEN
+=================================================
+
+WICHTIG:
+Bei "read -rp" ist der Text vor der Eingabe nur die Aufforderung.
+Die Telefonnummer muss DANACH wirklich eingegeben werden.
+
+Richtig:
+
+read -rp "Deine private WhatsApp-Nummer im Format +49...: " OWNER_NUMBER
+
+Jetzt die Nummer eingeben, z. B.:
+
++49DEINE_NUMMER
+
+Zur Kontrolle:
+
+echo "$OWNER_NUMBER"
+
+Es muss deine Nummer ausgegeben werden.
+
+Konfigurationsdatei erstellen:
+
+cat > /tmp/jarvis-whatsapp.json <<EOF
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "dmPolicy": "allowlist",
+      "allowFrom": [
+        "$OWNER_NUMBER"
+      ],
+      "groupPolicy": "disabled",
+      "mediaMaxMb": 50,
+      "actions": {
+        "calls": true
+      }
+    }
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "whatsapp:$OWNER_NUMBER"
+    ]
+  }
+}
+EOF
+
+Dry-Run:
+
+openclaw config patch --file /tmp/jarvis-whatsapp.json --dry-run
+
+Wenn erfolgreich:
+
+openclaw config patch --file /tmp/jarvis-whatsapp.json
+
+Prüfen:
+
+openclaw config get channels.whatsapp.allowFrom --json
+openclaw config get commands.ownerAllowFrom --json
+
+Erwartet ungefähr:
+
+[
+  "+49..."
+]
+
+und:
+
+[
+  "whatsapp:+49..."
+]
+
+
+=================================================
+7. WHATSAPP-KONTO KOPPELN
+=================================================
+
+Login starten:
+
+openclaw channels login --channel whatsapp
+
+Mit der Jarvis-WhatsApp-Business-Nummer:
+
+WhatsApp
+-> Einstellungen
+-> Verknüpfte Geräte
+-> Gerät hinzufügen
+
+QR-Code scannen.
+
+Danach Status prüfen:
+
+openclaw channels status --channel whatsapp --probe
+
+Ziel:
+- enabled
+- configured
+- linked
+- connected
+- healthy
+
+
+=================================================
+8. GO 1.27 INSTALLIEREN
+=================================================
+
+Architektur erkennen:
+
+case "$(dpkg --print-architecture)" in
+  amd64) GOARCH="amd64" ;;
+  arm64) GOARCH="arm64" ;;
+  *) echo "Nicht unterstützte Architektur: $(dpkg --print-architecture)"; exit 1 ;;
+esac
+
+Go herunterladen:
+
+cd /tmp
+curl -fLO "https://go.dev/dl/go1.27.0.linux-${GOARCH}.tar.gz"
+
+Installieren:
+
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf "go1.27.0.linux-${GOARCH}.tar.gz"
+
+PATH dauerhaft setzen:
+
+echo 'export PATH=/usr/local/go/bin:$HOME/.local/bin:$PATH' >> ~/.profile
+
+Für die aktuelle Sitzung:
+
+export PATH=/usr/local/go/bin:$HOME/.local/bin:$PATH
+
+Prüfen:
+
+go version
+
+Erwartet ungefähr:
+
+go version go1.27.0 linux/amd64
+
+oder:
+
+go version go1.27.0 linux/arm64
+
+
+=================================================
+9. MEOWCALLER BAUEN
+=================================================
+
+Repository klonen:
+
+cd /home/leon
+git clone --branch feat/send-only-notify https://github.com/steipete/meowcaller.git
+
+In das Repository wechseln:
+
+cd /home/leon/meowcaller
+
+Getesteten Commit verwenden:
+
+git checkout 752050471fc2bf7a8cdfbf7dbd3cd4e865d85d3f
+
+Binary bauen:
+
+mkdir -p /home/leon/.local/bin
+go build -o /home/leon/.local/bin/meowcaller ./cmd/meowcaller
+
+Prüfen:
+
+command -v meowcaller
+
+Erwartet:
+
+/home/leon/.local/bin/meowcaller
+
+Zusätzlich:
+
+meowcaller --help
+
+
+=================================================
+10. MEOWCALLER MIT WHATSAPP KOPPELN
+=================================================
+
+State-Verzeichnis anlegen:
+
+mkdir -p /home/leon/.openclaw/credentials/whatsapp-calls/default
+chmod 700 /home/leon/.openclaw/credentials/whatsapp-calls/default
+
+Pairing starten:
+
+meowcaller pair --store /home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+QR-Code wieder mit der Jarvis-WhatsApp-Nummer scannen.
+
+Auf folgende Meldung warten:
+
+MeowCaller linked device ready
+
+Dateirechte setzen:
+
+chmod 600 /home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+
+=================================================
+11. ELEVENLABS TTS KONFIGURIEREN
+=================================================
+
+Aktuelle Jarvis Voice-ID:
+
+QY3Oz57TOFa67IL9gWWV
+
+TTS-Konfiguration erstellen:
+
+cat > /tmp/jarvis-tts.json <<'EOF'
+{
+  "tts": {
+    "auto": "off",
+    "provider": "elevenlabs",
+    "providers": {
+      "elevenlabs": {
+        "model": "eleven_multilingual_v2",
+        "speakerVoiceId": "QY3Oz57TOFa67IL9gWWV",
+        "languageCode": "de"
+      }
+    }
+  }
+}
+EOF
+
+Dry-Run:
+
+openclaw config patch --file /tmp/jarvis-tts.json --dry-run
+
+Übernehmen:
+
+openclaw config patch --file /tmp/jarvis-tts.json
+
+
+=================================================
+12. WHATSAPP-CALL-CONTACT-PLUGIN ÜBERTRAGEN
+=================================================
+
+Benötigte Plugin-Version:
+
+openclaw-whatsapp-call-contact-v0.1.1.zip
+
+Die ZIP-Datei auf den Server kopieren, z. B. nach:
+
+/home/leon/openclaw-whatsapp-call-contact-v0.1.1.zip
+
+Dann:
+
+cd /home/leon
+unzip openclaw-whatsapp-call-contact-v0.1.1.zip
+
+In den Plugin-Ordner wechseln:
+
+cd /home/leon/openclaw-whatsapp-call-contact-v0.1.1
+
+Abhängigkeiten installieren:
+
+npm install
+
+Plugin bauen/validieren:
+
+npm run plugin:build
+npm run plugin:validate
+
+Plugin als lokalen Link installieren:
+
+openclaw plugins install -l "$PWD" --no-enable --force
+
+
+=================================================
+13. FREIGEGEBENEN KONTAKT EINRICHTEN
+=================================================
+
+Eigene Nummer einlesen:
+
+read -rp "Deine Nummer A im Format +49...: " OWNER_NUMBER
+
+Kontakt-Nummer einlesen:
+
+read -rp "Nummer des freigegebenen Kontakts im Format +49...: " CONTACT_NUMBER
+
+Beispiel-Konfiguration für Annka:
+
+cat > /tmp/jarvis-contact-plugin.json <<EOF
+{
+  "plugins": {
+    "entries": {
+      "whatsapp-call-contact": {
+        "config": {
+          "authorizedCaller": "$OWNER_NUMBER",
+          "contacts": [
+            {
+              "name": "Annka",
+              "phone": "$CONTACT_NUMBER",
+              "aliases": [
+                "Annka",
+                "Ann-Kathrin"
+              ]
+            }
+          ],
+          "voiceId": "QY3Oz57TOFa67IL9gWWV",
+          "model": "eleven_multilingual_v2",
+          "accountId": "default",
+          "meowcallerPath": "/home/leon/.local/bin/meowcaller",
+          "maxMessageChars": 450,
+          "maxCallsPer10Minutes": 5
+        }
+      }
+    }
+  }
+}
+EOF
+
+Dry-Run:
+
+openclaw config patch --file /tmp/jarvis-contact-plugin.json --dry-run
+
+Übernehmen:
+
+openclaw config patch --file /tmp/jarvis-contact-plugin.json
+
+Plugin aktivieren:
+
+openclaw plugins enable whatsapp-call-contact
+
+Prüfen:
+
+openclaw plugins inspect whatsapp-call-contact --runtime
+
+Erwartet:
+
+Status: loaded
+
+Tools:
+whatsapp_call_contact
+whatsapp_call_contacts
+
+
+=================================================
+14. OPENCLAW GATEWAY ALS SYSTEMD-DIENST INSTALLIEREN
+=================================================
+
+Gateway-Dienst installieren:
+
+openclaw gateway install
+
+systemd neu laden:
+
+systemctl --user daemon-reload
+
+Dienst aktivieren und starten:
+
+systemctl --user enable --now openclaw-gateway.service
+
+Status prüfen:
+
+systemctl --user status openclaw-gateway.service --no-pager
+
+
+=================================================
+15. ELEVENLABS-API-KEY SICHER FÜR SYSTEMD HINTERLEGEN
+=================================================
+
+Environment-Datei vorbereiten:
+
+mkdir -p /home/leon/.openclaw
+touch /home/leon/.openclaw/gateway.systemd.env
+chmod 600 /home/leon/.openclaw/gateway.systemd.env
+
+Alte Einträge entfernen, falls vorhanden:
+
+sed -i '/^ELEVENLABS_API_KEY=/d' /home/leon/.openclaw/gateway.systemd.env
+sed -i '/^PATH=/d' /home/leon/.openclaw/gateway.systemd.env
+
+API-Key verdeckt eingeben:
+
+read -rsp "ElevenLabs API Key: " ELEVENLABS_API_KEY
+echo
+
+Key speichern:
+
+printf 'ELEVENLABS_API_KEY=%s\n' "$ELEVENLABS_API_KEY" >> /home/leon/.openclaw/gateway.systemd.env
+
+PATH für MeowCaller und Go setzen:
+
+printf 'PATH=/home/leon/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' >> /home/leon/.openclaw/gateway.systemd.env
+
+Variable aus aktueller Shell löschen:
+
+unset ELEVENLABS_API_KEY
+
+Dateirechte erneut setzen:
+
+chmod 600 /home/leon/.openclaw/gateway.systemd.env
+
+Gateway neu laden:
+
+systemctl --user daemon-reload
+systemctl --user restart openclaw-gateway.service
+
+
+=================================================
+16. AUTOSTART OHNE SSH-LOGIN AKTIVIEREN
+=================================================
+
+Damit OpenClaw nach einem Server-Neustart auch ohne SSH-Login startet:
+
+sudo loginctl enable-linger leon
+
+Prüfen:
+
+loginctl show-user leon -p Linger
+
+Erwartet:
+
+Linger=yes
+
+Dienst noch einmal aktivieren:
+
+systemctl --user enable openclaw-gateway.service
+
+Neustarten:
+
+systemctl --user restart openclaw-gateway.service
+
+
+=================================================
+17. KOMPLETTEN STATUS PRÜFEN
+=================================================
+
+Gateway:
+
+openclaw gateway status --deep
+
+Erwartet ungefähr:
+
+Runtime: running
+Connectivity probe: ok
+Listening: 127.0.0.1:18789
+
+WhatsApp:
+
+openclaw channels status --channel whatsapp --probe
+
+Plugin:
+
+openclaw plugins inspect whatsapp-call-contact --runtime
+
+Plugin-Diagnose:
+
+openclaw plugins doctor
+
+Owner-Allowlist:
+
+openclaw config get commands.ownerAllowFrom --json
+
+WhatsApp-Allowlist:
+
+openclaw config get channels.whatsapp.allowFrom --json
+
+Modell:
+
+openclaw models status
+
+MeowCaller:
+
+command -v meowcaller
+
+MeowCaller-Datenbank:
+
+ls -lh /home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+
+=================================================
+18. WHATSAPP-TESTS
+=================================================
+
+Test 1:
+
+Hallo Jarvis
+
+Test 2:
+
+Ruf mich an und sag: Der neue Ubuntu Server funktioniert.
+
+Test 3:
+
+Welche freigegebenen WhatsApp-Kontakte kannst du anrufen?
+
+Jarvis sollte Annka nennen.
+
+Test 4:
+
+Ruf Annka an und sag: Hallo Annka, ich bin JARVIS. Der neue Server funktioniert.
+
+Wenn der Kontakt den Anruf erhält und die ElevenLabs-Stimme hört, funktioniert die komplette Kette:
+
+WhatsApp
+-> OpenClaw
+-> GPT
+-> whatsapp_call_contact
+-> ElevenLabs
+-> MeowCaller
+-> WhatsApp-Anruf
+
+
+=================================================
+19. SERVER-NEUSTART TESTEN
+=================================================
+
+Server neu starten:
+
+sudo reboot
+
+Nach dem Neustart per SSH verbinden und prüfen:
+
+openclaw gateway status --deep
+
+Zusätzlich:
+
+systemctl --user status openclaw-gateway.service --no-pager
+
+OpenClaw sollte bereits laufen, ohne dass du ihn manuell gestartet hast.
+
+
+=================================================
+20. JARVIS-PERSÖNLICHKEIT VOM WINDOWS-SYSTEM ÜBERNEHMEN
+=================================================
+
+NICHT den kompletten Windows-Ordner:
+
+C:\Users\Jarvis\.openclaw
+
+blind nach Ubuntu kopieren.
+
+Stattdessen gezielt die Workspace-/Persönlichkeitsdateien übernehmen, z. B.:
+
+SOUL.md
+AGENTS.md
+USER.md
+MEMORY.md
+
+sowie weitere von dir angepasste Agent-Dateien.
+
+Damit bleibt die Persönlichkeit erhalten, ohne Windows-Pfade oder Windows-spezifischen Zustand mitzunehmen.
+
+
+=================================================
+21. WICHTIGE PFADE AUF DEM UBUNTU-SERVER
+=================================================
+
+OpenClaw:
+
+/home/leon/.openclaw/
+
+Gateway-Systemd-Environment:
+
+/home/leon/.openclaw/gateway.systemd.env
+
+MeowCaller:
+
+/home/leon/.local/bin/meowcaller
+
+MeowCaller-Repository:
+
+/home/leon/meowcaller/
+
+MeowCaller-WhatsApp-Store:
+
+/home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+Contact-Call-Plugin:
+
+/home/leon/openclaw-whatsapp-call-contact-v0.1.1/
+
+
+=================================================
+22. FEHLERSUCHE
+=================================================
+
+Gateway läuft nicht:
+
+openclaw gateway status --deep
+
+systemd-Status:
+
+systemctl --user status openclaw-gateway.service --no-pager
+
+Letzte Logs:
+
+journalctl --user -u openclaw-gateway.service -n 100 --no-pager
+
+Live-Logs:
+
+journalctl --user -u openclaw-gateway.service -f
+
+OpenClaw Diagnose:
+
+openclaw doctor
+
+Plugin-Diagnose:
+
+openclaw plugins doctor
+
+WhatsApp prüfen:
+
+openclaw channels status --channel whatsapp --probe
+
+Owner prüfen:
+
+openclaw config get commands.ownerAllowFrom --json
+
+Wenn dort nur:
+
+[
+  "whatsapp:"
+]
+
+steht, wurde OWNER_NUMBER leer gespeichert.
+
+Dann erneut:
+
+read -rp "Deine private WhatsApp-Nummer im Format +49...: " OWNER_NUMBER
+
+Nummer wirklich eingeben.
+
+Danach /tmp/jarvis-whatsapp.json neu erzeugen und erneut patchen.
+
+
+=================================================
+23. SICHERHEIT
+=================================================
+
+- Port 18789 nicht öffentlich öffnen.
+- Gateway möglichst auf 127.0.0.1 lassen.
+- ElevenLabs-Key nicht in Chat, Screenshots oder Shell-History posten.
+- wa-voip.db privat halten.
+- /home/leon/.openclaw nur für leon zugänglich lassen.
+- Nur deine eigene Nummer unter commands.ownerAllowFrom eintragen.
+- Im Contact-Call-Plugin nur ausdrücklich erlaubte Kontakte hinterlegen.
+
+
+ENDE
+====

@@ -1,0 +1,33 @@
+{
+  "name": "openclaw-plugin-whatsapp-call-contact",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "description": "OpenClaw tool plugin that lets one authorized WhatsApp sender call pre-approved WhatsApp contacts via MeowCaller and ElevenLabs.",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "plugin:build": "npm run build && openclaw plugins build --entry ./dist/index.js",
+    "plugin:validate": "npm run plugin:build && openclaw plugins validate --entry ./dist/index.js"
+  },
+  "dependencies": {
+    "typebox": "^1.1.38"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "openclaw": "2026.9.8",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+# Heruntergeladener Serverzustand mit Zugangsdaten und privaten Sitzungen.
+.openclaw/
+
+# Lokale Abhängigkeiten und erzeugte Python-Caches.
+node_modules/
+__pycache__/
+*.py[cod]
+
+# Zugangsdaten bleiben lokal.
+.env
+*.env

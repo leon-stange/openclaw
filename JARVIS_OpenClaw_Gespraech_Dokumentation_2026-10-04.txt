@@ -1,0 +1,1146 @@
+JARVIS / OPENCLAW – VOLLSTÄNDIGE DOKUMENTATION DES SETUPS
+============================================================
+
+Stand: 04.10.2026
+System: Ubuntu Server 24.04
+Server-Benutzer: leon
+Host: stangeserv
+OpenClaw-Version: 2026.9.8 (fc23bc8)
+
+ZIEL
+----
+Ziel des Projekts war es, den bisher auf einer Windows-VM laufenden persönlichen
+JARVIS-Assistenten auf einen frisch installierten Ubuntu-24.04-Server zu übertragen
+und dort dauerhaft zu betreiben.
+
+Der gewünschte Funktionsumfang:
+
+- OpenClaw als zentraler Agent
+- OpenAI / ChatGPT als Modellzugang
+- Standardmodell: openai/gpt-5.6-sol
+- WhatsApp als Kommunikationskanal
+- nur die private Owner-Nummer darf Jarvis steuern
+- keine WhatsApp-Gruppen
+- ElevenLabs für TTS
+- MeowCaller für WhatsApp-Sprachanrufe
+- eingebauter WhatsApp-Anruf an den aktuellen Absender
+- eigenes Plugin für Anrufe an vorher freigegebene Kontakte
+- Beispielkontakt: Annka
+- OpenClaw als systemd-User-Service
+- Autostart auch ohne SSH-Login
+- kein öffentlich freigegebener Gateway-Port
+
+
+============================================================
+1. AUSGANGSLAGE
+============================================================
+
+Vor der Ubuntu-Migration lief Jarvis auf einer Windows-VM.
+
+Dort war bereits folgendes funktional:
+
+- OpenClaw 2026.9.8
+- WhatsApp
+- OpenAI / GPT-5.6 Sol
+- ElevenLabs TTS
+- MeowCaller
+- eigener Kontakt-Anruf-Workflow
+- WhatsApp Owner-Allowlist
+- eigenes Plugin "whatsapp-call-contact"
+- freigegebener Kontakt Annka
+- Tool-Namen:
+  - whatsapp_call_contact
+  - whatsapp_call_contacts
+
+Die Windows-Version hatte zusätzlich einen lokalen Windows-spezifischen Patch für
+OpenClaw-Sessions. Dieser Patch ist unter Ubuntu nicht erforderlich.
+
+
+============================================================
+2. UBUNTU-BENUTZER
+============================================================
+
+Der Server hatte bereits den Benutzer:
+
+leon
+
+Daher wurde kein zusätzlicher Benutzer "jarvis" angelegt.
+
+Prüfung:
+
+whoami
+
+Erwartet:
+
+leon
+
+
+============================================================
+3. GRUNDSYSTEM
+============================================================
+
+Installierte Grundpakete:
+
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y curl git unzip build-essential ca-certificates jq
+
+
+============================================================
+4. OPENCLAW INSTALLATION
+============================================================
+
+OpenClaw wurde gezielt in derselben Version wie auf der alten Windows-VM installiert:
+
+2026.9.8
+
+Installationsbefehl:
+
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --version 2026.9.8 --no-onboard --verify
+
+Danach Shell neu laden:
+
+exec "$SHELL" -l
+
+Prüfung:
+
+openclaw --version
+node --version
+npm --version
+
+
+============================================================
+5. OPENAI / CHATGPT
+============================================================
+
+Für den Headless-Server wurde OpenAI über Device-Code angemeldet:
+
+openclaw models auth login --provider openai --device-code
+
+Danach:
+
+openclaw models auth list --provider openai
+
+Als Standardmodell wurde gesetzt:
+
+openai/gpt-5.6-sol
+
+Mit explizitem OpenClaw-Runtime-Eintrag:
+
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol"
+      },
+      "models": {
+        "openai/gpt-5.6-sol": {
+          "agentRuntime": {
+            "id": "openclaw"
+          }
+        }
+      }
+    }
+  }
+}
+
+Angewendet über:
+
+openclaw config patch --file /tmp/jarvis-model.json --dry-run
+openclaw config patch --file /tmp/jarvis-model.json
+
+Prüfung:
+
+openclaw models status
+
+
+============================================================
+6. WHATSAPP-PLUGIN
+============================================================
+
+WhatsApp wurde über das offizielle OpenClaw-Plugin installiert:
+
+openclaw plugins install @openclaw/whatsapp
+
+Die Jarvis-WhatsApp-Nummer ist eine separate WhatsApp-Business-Nummer.
+
+Die private Owner-Nummer wurde als einziger erlaubter Absender eingetragen.
+
+Wichtige Konfiguration:
+
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "dmPolicy": "allowlist",
+      "allowFrom": [
+        "+49..."
+      ],
+      "groupPolicy": "disabled",
+      "mediaMaxMb": 50,
+      "actions": {
+        "calls": true
+      }
+    }
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "whatsapp:+49..."
+    ]
+  }
+}
+
+Wichtiger Fehler während der Einrichtung:
+-----------------------------------------
+
+Beim ersten Versuch wurde folgender Befehl falsch verwendet:
+
+read -rp "+49..." OWNER_NUMBER
+
+Der Text "+49..." war dabei nur der Prompt-Text. Die Variable blieb leer.
+
+Dadurch wurde fälschlich gespeichert:
+
+channels.whatsapp.allowFrom = []
+
+und:
+
+commands.ownerAllowFrom = ["whatsapp:"]
+
+Erkennbar an:
+
+openclaw config get commands.ownerAllowFrom --json
+
+Ausgabe:
+
+[
+  "whatsapp:"
+]
+
+Korrekte Verwendung:
+
+read -rp "Deine private WhatsApp-Nummer im Format +49...: " OWNER_NUMBER
+
+Danach die Nummer wirklich eingeben.
+
+Prüfungen:
+
+openclaw config get channels.whatsapp.allowFrom --json
+openclaw config get commands.ownerAllowFrom --json
+
+
+============================================================
+7. WHATSAPP-KOPPLUNG
+============================================================
+
+WhatsApp wurde über QR gekoppelt:
+
+openclaw channels login --channel whatsapp
+
+Danach:
+
+openclaw channels status --channel whatsapp --probe
+
+Zwischenzeitlich trat auch folgender Zustand auf:
+
+linked
+running
+disconnected
+
+In diesem Fall wurde empfohlen:
+
+systemctl --user restart openclaw-gateway.service
+sleep 10
+openclaw channels status --channel whatsapp --probe
+
+Falls nötig:
+
+openclaw channels login --channel whatsapp
+
+
+============================================================
+8. MEOWCALLER
+============================================================
+
+MeowCaller wird für WhatsApp-Sprachanrufe verwendet.
+
+Der verwendete Stand basiert auf:
+
+Repository:
+https://github.com/steipete/meowcaller.git
+
+Branch:
+feat/send-only-notify
+
+Commit:
+752050471fc2bf7a8cdfbf7dbd3cd4e865d85d3f
+
+Go-Version:
+1.27.0
+
+Installation von Go:
+
+case "$(dpkg --print-architecture)" in
+  amd64) GOARCH="amd64" ;;
+  arm64) GOARCH="arm64" ;;
+  *) echo "Nicht unterstützte Architektur: $(dpkg --print-architecture)"; exit 1 ;;
+esac
+
+cd /tmp
+curl -fLO "https://go.dev/dl/go1.27.0.linux-${GOARCH}.tar.gz"
+
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf "go1.27.0.linux-${GOARCH}.tar.gz"
+
+echo 'export PATH=/usr/local/go/bin:$HOME/.local/bin:$PATH' >> ~/.profile
+export PATH=/usr/local/go/bin:$HOME/.local/bin:$PATH
+
+Prüfung:
+
+go version
+
+MeowCaller bauen:
+
+cd /home/leon
+git clone --branch feat/send-only-notify https://github.com/steipete/meowcaller.git
+cd /home/leon/meowcaller
+git checkout 752050471fc2bf7a8cdfbf7dbd3cd4e865d85d3f
+
+mkdir -p /home/leon/.local/bin
+go build -o /home/leon/.local/bin/meowcaller ./cmd/meowcaller
+
+Prüfung:
+
+command -v meowcaller
+
+Ergebnis:
+
+/home/leon/.local/bin/meowcaller
+
+
+============================================================
+9. MEOWCALLER-WHATSAPP-SESSION
+============================================================
+
+MeowCaller verwendet eine eigene WhatsApp-Linked-Device-Session.
+
+State-Verzeichnis:
+
+/home/leon/.openclaw/credentials/whatsapp-calls/default
+
+Session-Datenbank:
+
+/home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+Einrichtung:
+
+mkdir -p /home/leon/.openclaw/credentials/whatsapp-calls/default
+chmod 700 /home/leon/.openclaw/credentials/whatsapp-calls/default
+
+meowcaller pair --store /home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+Erwartete Meldung:
+
+MeowCaller linked device ready
+
+Danach:
+
+chmod 600 /home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+
+============================================================
+10. ELEVENLABS
+============================================================
+
+Verwendete Voice-ID:
+
+QY3Oz57TOFa67IL9gWWV
+
+TTS-Konfiguration:
+
+{
+  "tts": {
+    "auto": "off",
+    "provider": "elevenlabs",
+    "providers": {
+      "elevenlabs": {
+        "model": "eleven_multilingual_v2",
+        "speakerVoiceId": "QY3Oz57TOFa67IL9gWWV",
+        "languageCode": "de"
+      }
+    }
+  }
+}
+
+Prüfung:
+
+openclaw config get tts --json
+
+Ergebnis war korrekt:
+
+- auto: off
+- provider: elevenlabs
+- model: eleven_multilingual_v2
+- Voice-ID korrekt
+- Sprache: de
+
+Hinweis:
+--------
+tts.auto = off bedeutet nur, dass normale Chat-Antworten nicht automatisch als
+Audio ausgegeben werden. Für whatsapp_call kann TTS trotzdem gezielt verwendet werden.
+
+Der ElevenLabs-API-Key wurde in:
+
+/home/leon/.openclaw/gateway.systemd.env
+
+gespeichert.
+
+Der im Gespräch sichtbare API-Key wird in dieser Dokumentation absichtlich NICHT
+erneut ausgeschrieben.
+
+Dateirechte:
+
+chmod 600 /home/leon/.openclaw/gateway.systemd.env
+
+
+============================================================
+11. TTS-PROBLEM UND LÖSUNG
+============================================================
+
+Zwischenzeitlich meldete Jarvis:
+
+"Für Sprachausgabe ist aktuell kein TTS-Anbieter konfiguriert."
+
+Obwohl:
+
+openclaw config get tts --json
+
+bereits zeigte:
+
+provider: elevenlabs
+
+Die Ursache war, dass der systemd-Service die Datei:
+
+/home/leon/.openclaw/gateway.systemd.env
+
+noch nicht einlas.
+
+Lösung:
+
+mkdir -p /home/leon/.config/systemd/user/openclaw-gateway.service.d
+
+cat > /home/leon/.config/systemd/user/openclaw-gateway.service.d/environment.conf <<'EOF'
+[Service]
+EnvironmentFile=/home/leon/.openclaw/gateway.systemd.env
+EOF
+
+Dann:
+
+systemctl --user daemon-reload
+systemctl --user restart openclaw-gateway.service
+
+Prüfen:
+
+systemctl --user show openclaw-gateway.service -p EnvironmentFiles
+
+Zusätzlich konnte geprüft werden, ob der laufende Gateway-Prozess den Key wirklich hat:
+
+PID=$(systemctl --user show openclaw-gateway.service -p MainPID --value)
+sudo tr '\0' '\n' < /proc/$PID/environ | grep -q '^ELEVENLABS_API_KEY=' && echo "OK: Gateway hat ElevenLabs-Key" || echo "FEHLER: Gateway hat keinen ElevenLabs-Key"
+
+Später zeigte WhatsApp bei:
+
+/tts status
+
+korrekt:
+
+State: disabled
+Provider: elevenlabs (configured)
+Auto-summary: on
+
+Damit war die ElevenLabs-Konfiguration erfolgreich.
+
+
+============================================================
+12. EIGENES PLUGIN: WHATSAPP-CALL-CONTACT
+============================================================
+
+Ziel des Plugins:
+-----------------
+
+Der eingebaute OpenClaw-Tool-Aufruf:
+
+whatsapp_call
+
+kann nur den aktuellen WhatsApp-Absender anrufen.
+
+Gewünscht war zusätzlich:
+
+"Ruf Annka an und sag ..."
+
+also ein vorher freigegebener Kontakt, ohne beliebige Telefonnummern durch das Modell
+zulassen zu müssen.
+
+Dafür wurde ein eigenes Plugin gebaut:
+
+whatsapp-call-contact
+
+Aktuelle korrigierte Version:
+
+0.1.2
+
+Tools:
+
+whatsapp_call_contact
+whatsapp_call_contacts
+
+Das Plugin:
+
+- erlaubt nur vorher konfigurierte Kontakte
+- gibt dem Modell keine freie Telefonnummernwahl
+- nutzt ElevenLabs für TTS
+- nutzt MeowCaller für den eigentlichen WhatsApp-Anruf
+- limitiert Nachrichtenlänge
+- hat Rate-Limiting
+- löscht temporäre Audiodateien wieder
+- verwendet OpenClaw-Owner-Autorisierung
+
+
+============================================================
+13. WICHTIGER PLUGIN-FIX: senderIsOwner
+============================================================
+
+Die erste Version des Plugins prüfte sinngemäß:
+
+toolContext.requesterSenderId
+
+gegen eine E.164-Telefonnummer.
+
+Das war unter WhatsApp problematisch, weil OpenClaw teilweise eine WhatsApp-LID/JID
+statt direkt der E.164-Nummer liefert.
+
+Dadurch war das Tool in WhatsApp nicht verfügbar, obwohl das Plugin geladen war.
+
+Die korrigierte Lösung:
+
+if (toolContext.messageChannel !== "whatsapp") return null;
+if (toolContext.senderIsOwner !== true) return null;
+
+Damit verwendet das Plugin die von OpenClaw selbst verifizierte Owner-Identität.
+
+Wichtig:
+--------
+commands.ownerAllowFrom muss korrekt gesetzt sein.
+
+Beispiel:
+
+[
+  "whatsapp:+49..."
+]
+
+
+============================================================
+14. PLUGIN-VERSIONEN
+============================================================
+
+Es wurden zwei korrigierte Varianten erstellt:
+
+Windows:
+openclaw-whatsapp-call-contact-v0.1.2-windows.zip
+
+Ubuntu:
+openclaw-whatsapp-call-contact-v0.1.2-ubuntu.zip
+
+Für den Ubuntu-Server wurde die Ubuntu-Version verwendet.
+
+Installationspfad:
+
+/home/leon/openclaw-whatsapp-call-contact-v0.1.2-ubuntu
+
+Die Ubuntu-Version enthält einen eigenen:
+
+install.sh
+
+Installationsablauf:
+
+cd /home/leon
+unzip openclaw-whatsapp-call-contact-v0.1.2-ubuntu.zip
+cd /home/leon/openclaw-whatsapp-call-contact-v0.1.2-ubuntu
+chmod +x install.sh
+./install.sh
+
+Nach Installation zeigte OpenClaw:
+
+WhatsApp Call Contact
+Status: loaded
+Version: 0.1.2
+
+Tools:
+whatsapp_call_contact
+whatsapp_call_contacts
+
+Damit war das Plugin korrekt geladen.
+
+
+============================================================
+15. FREIGEGEBENER KONTAKT
+============================================================
+
+Beispielkontakt:
+
+Name:
+Annka
+
+Alias:
+Annka
+Ann-Kathrin
+
+Die Telefonnummer ist im Plugin hinterlegt, wird aber hier in der Dokumentation
+nicht erneut ausgeschrieben.
+
+Die Plugin-Konfiguration enthält u. a.:
+
+- authorizedCaller
+- contacts[]
+- voiceId
+- model
+- accountId
+- meowcallerPath
+- maxMessageChars
+- maxCallsPer10Minutes
+
+MeowCaller-Pfad unter Ubuntu:
+
+/home/leon/.local/bin/meowcaller
+
+
+============================================================
+16. TEST DES KONTAKT-TOOLS
+============================================================
+
+WhatsApp-Test:
+
+Welche freigegebenen WhatsApp-Kontakte kannst du anrufen?
+
+Jarvis antwortete korrekt und nannte Annka.
+
+Damit war bestätigt:
+
+- Plugin geladen
+- Owner erkannt
+- Kontakt-Allowlist funktioniert
+- Tool-Liste ist im Agenten sichtbar
+
+
+============================================================
+17. MEOWCALLER-WIRD-NICHT-GEFUNDEN-PROBLEM
+============================================================
+
+Jarvis meldete zunächst:
+
+"MeowCaller ist auf dem System nicht installiert."
+
+Prüfung:
+
+command -v meowcaller
+
+Ergebnis:
+
+/home/leon/.local/bin/meowcaller
+
+Damit war klar:
+MeowCaller war installiert, aber der OpenClaw-Prozess hatte nicht zwingend denselben PATH.
+
+Zusätzlich fehlte zunächst:
+
+/home/leon/.openclaw/gateway.systemd.env
+
+Diese Datei wurde erstellt.
+
+PATH-Inhalt:
+
+PATH=/home/leon/.local/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+
+============================================================
+18. OPENCLAW-SYSTEMD-SERVICE
+============================================================
+
+Zunächst lief OpenClaw noch als unmanaged/Foreground-Prozess.
+
+Prüfung:
+
+systemctl --user cat openclaw-gateway.service
+
+ergab:
+
+No files found for openclaw-gateway.service.
+
+Daraufhin wurde versucht:
+
+openclaw gateway install --force
+
+Das schlug zunächst fehl wegen unsicherer Rechte.
+
+
+============================================================
+19. SYSTEMD-PERMISSION-PROBLEM
+============================================================
+
+Fehler:
+
+SERVICE_DEFINITION_UNKNOWN: [unsafe-permissions]
+
+OpenClaw erkannte, dass:
+
+~/.config/systemd/user
+
+oder ein übergeordneter Ordner gruppen- oder welt-schreibbar war.
+
+Prüfung:
+
+stat -c '%a %U:%G %n' /home/leon /home/leon/.config /home/leon/.config/systemd /home/leon/.config/systemd/user
+
+Ergebnis u. a.:
+
+750 leon:leon /home/leon
+775 leon:leon /home/leon/.config
+
+Außerdem existierten:
+
+/home/leon/.config/systemd
+/home/leon/.config/systemd/user
+
+noch nicht.
+
+Lösung:
+
+chmod 700 /home/leon/.config
+mkdir -p /home/leon/.config/systemd/user
+chmod 700 /home/leon/.config/systemd
+chmod 700 /home/leon/.config/systemd/user
+
+sudo chown leon:leon /home/leon/.config
+sudo chown leon:leon /home/leon/.config/systemd
+sudo chown leon:leon /home/leon/.config/systemd/user
+
+Danach konnte der Gateway-Service installiert werden.
+
+
+============================================================
+20. SYSTEMD-SERVICE ERFOLGREICH INSTALLIERT
+============================================================
+
+Befehl:
+
+openclaw gateway install --force
+
+Ergebnis:
+
+Installed systemd service:
+/home/leon/.config/systemd/user/openclaw-gateway.service
+
+Dann:
+
+systemctl --user daemon-reload
+systemctl --user enable --now openclaw-gateway.service
+
+Status:
+
+Active: active (running)
+
+Prüfung:
+
+systemctl --user status openclaw-gateway.service --no-pager
+
+Service-Pfad:
+
+/home/leon/.config/systemd/user/openclaw-gateway.service
+
+OpenClaw lief anschließend als echter systemd-User-Service.
+
+
+============================================================
+21. SYSTEMD PATH
+============================================================
+
+Im Service war später bereits ein PATH enthalten, in dem:
+
+/home/leon/.local/bin
+
+vorkam.
+
+Dadurch konnte der Gateway MeowCaller finden.
+
+Zusätzlich wurde später für ElevenLabs das EnvironmentFile als Drop-in ergänzt.
+
+
+============================================================
+22. AUTOSTART OHNE SSH-LOGIN
+============================================================
+
+Für einen Server ist wichtig, dass der User-Service auch ohne aktive SSH-Sitzung läuft.
+
+Dafür:
+
+sudo loginctl enable-linger leon
+
+Prüfung:
+
+loginctl show-user leon -p Linger
+
+Erwartet:
+
+Linger=yes
+
+Zusätzlich:
+
+systemctl --user enable openclaw-gateway.service
+
+
+============================================================
+23. WHATSAPP-ANRUFFUNKTION
+============================================================
+
+Nach Behebung von:
+
+- MeowCaller PATH
+- systemd-Service
+- ElevenLabs-Key
+- TTS-Provider
+
+funktionierte der normale WhatsApp-Anruf wieder.
+
+Test:
+
+Ruf mich an und sag: "Test vom Ubuntu Server."
+
+Status am Ende:
+Der normale WhatsApp-Anruf funktioniert.
+
+
+============================================================
+24. WICHTIGE OPENCLAW-TOOLS
+============================================================
+
+whatsapp_call
+-------------
+Eingebautes OpenClaw-Tool.
+
+Kann nur den aktuellen WhatsApp-Absender anrufen.
+
+Nutzt:
+- MeowCaller
+- TTS
+- separate WhatsApp-Linked-Device-Session
+
+whatsapp_call_contact
+---------------------
+Eigenes Plugin.
+
+Kann genau einen freigegebenen Kontakt aus der Allowlist anrufen.
+
+whatsapp_call_contacts
+----------------------
+Listet die freigegebenen Kontakte auf.
+
+
+============================================================
+25. WICHTIGE PFADE
+============================================================
+
+OpenClaw-State:
+
+/home/leon/.openclaw/
+
+OpenClaw-Konfiguration:
+
+/home/leon/.openclaw/openclaw.json
+
+Gateway-systemd-Environment:
+
+/home/leon/.openclaw/gateway.systemd.env
+
+systemd-Service:
+
+/home/leon/.config/systemd/user/openclaw-gateway.service
+
+systemd-Drop-in:
+
+/home/leon/.config/systemd/user/openclaw-gateway.service.d/environment.conf
+
+MeowCaller:
+
+/home/leon/.local/bin/meowcaller
+
+MeowCaller-Repository:
+
+/home/leon/meowcaller/
+
+MeowCaller-WhatsApp-DB:
+
+/home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+Ubuntu-Plugin:
+
+/home/leon/openclaw-whatsapp-call-contact-v0.1.2-ubuntu/
+
+
+============================================================
+26. STATUS-BEFEHLE
+============================================================
+
+Gateway:
+
+openclaw gateway status --deep
+
+systemd:
+
+systemctl --user status openclaw-gateway.service --no-pager
+
+Service-Datei:
+
+systemctl --user cat openclaw-gateway.service
+
+EnvironmentFiles:
+
+systemctl --user show openclaw-gateway.service -p EnvironmentFiles
+
+WhatsApp:
+
+openclaw channels status --channel whatsapp --probe
+
+Plugins:
+
+openclaw plugins list
+openclaw plugins inspect whatsapp-call-contact --runtime
+openclaw plugins doctor
+
+Owner-Allowlist:
+
+openclaw config get commands.ownerAllowFrom --json
+
+WhatsApp-Allowlist:
+
+openclaw config get channels.whatsapp.allowFrom --json
+
+TTS:
+
+openclaw config get tts --json
+
+Modell:
+
+openclaw models status
+
+MeowCaller:
+
+command -v meowcaller
+
+MeowCaller-DB:
+
+ls -lh /home/leon/.openclaw/credentials/whatsapp-calls/default/wa-voip.db
+
+
+============================================================
+27. LOGS UND FEHLERSUCHE
+============================================================
+
+Letzte Gateway-Logs:
+
+journalctl --user -u openclaw-gateway.service -n 100 --no-pager
+
+Live-Logs:
+
+journalctl --user -u openclaw-gateway.service -f
+
+OpenClaw Doctor:
+
+openclaw doctor
+
+Plugin Doctor:
+
+openclaw plugins doctor
+
+
+============================================================
+28. TESTS
+============================================================
+
+Neue Session:
+
+/new
+
+TTS-Status:
+
+/tts status
+
+Normale Nachricht:
+
+Hallo Jarvis
+
+Normaler Rückruf:
+
+Ruf mich an und sag: "Test vom Ubuntu Server."
+
+Kontaktliste:
+
+Welche freigegebenen WhatsApp-Kontakte kannst du anrufen?
+
+Kontaktanruf:
+
+Ruf Annka an und sag: "Hallo Annka, das ist ein Test von Jarvis."
+
+
+============================================================
+29. BACKUP
+============================================================
+
+Empfohlenes Backup:
+
+cd /home/leon
+
+tar -czf jarvis-backup-$(date +%Y-%m-%d).tar.gz   .openclaw   .local/bin/meowcaller   openclaw-whatsapp-call-contact-v0.1.2-ubuntu
+
+WICHTIG:
+Die Datei enthält sensible WhatsApp- und Provider-Zugangsdaten.
+Backup sicher verwahren.
+
+
+============================================================
+30. REBOOT-TEST
+============================================================
+
+Kompletter Server-Neustart:
+
+sudo reboot
+
+Danach prüfen:
+
+openclaw gateway status --deep
+
+systemctl --user status openclaw-gateway.service --no-pager
+
+openclaw channels status --channel whatsapp --probe
+
+Ziel:
+Jarvis soll ohne manuelles Starten wieder erreichbar sein.
+
+
+============================================================
+31. PERSÖNLICHKEIT / WORKSPACE
+============================================================
+
+Vom alten Windows-System sollte NICHT blind der komplette:
+
+C:\Users\Jarvis\.openclaw
+
+Ordner nach Linux kopiert werden.
+
+Stattdessen gezielt Workspace-/Persönlichkeitsdateien übernehmen, z. B.:
+
+SOUL.md
+AGENTS.md
+USER.md
+MEMORY.md
+
+und weitere selbst angepasste Dateien.
+
+Grund:
+Damit bleiben Persönlichkeit und Verhalten erhalten, ohne Windows-spezifische Pfade
+oder alten Plattform-State mitzunehmen.
+
+
+============================================================
+32. SICHERHEIT
+============================================================
+
+- Port 18789 nicht öffentlich freigeben.
+- Gateway möglichst nur auf 127.0.0.1 betreiben.
+- API-Keys nicht in Screenshots oder Chat posten.
+- wa-voip.db ist hochsensibel.
+- ~/.openclaw privat halten.
+- commands.ownerAllowFrom nur auf die eigene Owner-Nummer setzen.
+- Im Kontakt-Plugin nur bewusst freigegebene Kontakte eintragen.
+- Keine beliebigen Zielnummern durch das Modell zulassen.
+- systemd- und Config-Verzeichnisse nicht gruppen- oder welt-schreibbar machen.
+
+
+============================================================
+33. AKTUELLER FUNKTIONSSTAND
+============================================================
+
+Erfolgreich eingerichtet:
+
+[OK] Ubuntu 24.04
+[OK] Benutzer leon
+[OK] OpenClaw 2026.9.8
+[OK] OpenAI / ChatGPT Login
+[OK] GPT-5.6 Sol
+[OK] WhatsApp
+[OK] WhatsApp-Allowlist
+[OK] Owner-Allowlist
+[OK] Gruppen deaktiviert
+[OK] MeowCaller
+[OK] MeowCaller WhatsApp Pairing
+[OK] ElevenLabs
+[OK] ElevenLabs TTS erkannt
+[OK] OpenClaw systemd-Service
+[OK] normaler WhatsApp-Anruf funktioniert
+[OK] Kontakt-Plugin v0.1.2 geladen
+[OK] Annka wird als freigegebener Kontakt erkannt
+
+Noch abschließend zu prüfen bzw. sinnvoll:
+
+[ ] Annka-Anruf nach vollständigem Ubuntu-Neuaufbau einmal final testen
+[ ] Linger=Yes prüfen
+[ ] kompletten Server-Reboot testen
+[ ] Backup erstellen
+[ ] ggf. Workspace-/Persönlichkeitsdateien vom alten Windows-Jarvis übernehmen
+
+
+============================================================
+34. ENDARCHITEKTUR
+============================================================
+
+Private WhatsApp-Nummer
+        |
+        v
+Jarvis WhatsApp Business
+        |
+        v
+OpenClaw 2026.9.8
+        |
+        +--> GPT-5.6 Sol
+        |
+        +--> whatsapp_call
+        |      |
+        |      +--> ElevenLabs
+        |      +--> MeowCaller
+        |      +--> aktueller WhatsApp-Absender
+        |
+        +--> whatsapp_call_contact
+               |
+               +--> Kontakt-Allowlist
+               +--> ElevenLabs
+               +--> MeowCaller
+               +--> freigegebener Kontakt, z. B. Annka
+
+
+============================================================
+35. WICHTIGE ERKENNTNISSE AUS DER EINRICHTUNG
+============================================================
+
+1. Bei "read -rp" muss die Nummer nach dem Prompt wirklich eingegeben werden.
+2. commands.ownerAllowFrom ist unabhängig von channels.whatsapp.allowFrom.
+3. Für das eigene Plugin ist senderIsOwner zuverlässiger als rohe WhatsApp-Sender-IDs.
+4. MeowCaller benötigt eine eigene WhatsApp-Linked-Device-Session.
+5. Ein Shell-PATH ist nicht automatisch identisch mit dem PATH eines systemd-Service.
+6. OpenClaw verweigert systemd-Installationen bei unsicheren Verzeichnisrechten.
+7. ElevenLabs kann in OpenClaw korrekt konfiguriert sein, während der Gateway den API-Key noch nicht kennt.
+8. gateway.systemd.env muss vom systemd-Service tatsächlich geladen werden.
+9. tts.auto=off verhindert nicht die gezielte TTS-Nutzung in whatsapp_call.
+10. Ein echter systemd-Service ist für einen dauerhaften Ubuntu-Server deutlich besser als ein Foreground-Prozess.
+
+
+ENDE DER DOKUMENTATION
+======================
