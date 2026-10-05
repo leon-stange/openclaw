@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Type } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
+import { sendDurableMessageBatch } from "openclaw/plugin-sdk/channel-outbound";
 const e164Pattern = "^\\+[1-9]\\d{7,14}$";
 const contactSchema = Type.Object({
     name: Type.String({ minLength: 1, maxLength: 80 }),
@@ -78,7 +79,32 @@ async function synthesizeElevenLabs(params) {
     }
     return Buffer.from(await response.arrayBuffer());
 }
-async function runMeowCaller(params) {
+class MeowCallerError extends Error {
+    exitCode;
+    stderr;
+    constructor(exitCode, stderr) {
+        super(`MeowCaller-Anruf fehlgeschlagen (Exit ${exitCode ?? "?"}): ${stderr.trim() || "keine Details"}`);
+        this.exitCode = exitCode;
+        this.stderr = stderr;
+    }
+}
+export function isUnansweredCall(error) {
+    return error instanceof MeowCallerError && error.exitCode === 1 &&
+        /^recipient did not answer within \d+(?:\.\d+)?(?:ms|s|m|h)\s*$/m.test(error.stderr);
+}
+export async function callWithAudioFallback(params) {
+    try {
+        await params.call();
+        return { called: true };
+    }
+    catch (error) {
+        params.signal?.throwIfAborted();
+        if (!isUnansweredCall(error))
+            throw error;
+        return { called: false, fallbackMessageId: await params.sendAudio() };
+    }
+}
+export async function runMeowCaller(params) {
     await new Promise((resolve, reject) => {
         const child = spawn(params.executable, ["notify", "--store", params.storePath, params.target, params.audioPath], {
             windowsHide: true,
@@ -100,7 +126,7 @@ async function runMeowCaller(params) {
                 resolve();
                 return;
             }
-            reject(new Error(`MeowCaller-Anruf fehlgeschlagen (Exit ${code ?? "?"}): ${stderr.trim() || "keine Details"}`));
+            reject(new MeowCallerError(code, stderr));
         });
     });
 }
@@ -109,6 +135,18 @@ export function isDailyBriefingSession(sessionKey, agentId, automationId) {
         return false;
     const base = `agent:main:cron:${automationId}`;
     return sessionKey === base || sessionKey.startsWith(`${base}:run:`) && /^[a-f0-9-]{36}$/.test(sessionKey.slice(`${base}:run:`.length));
+}
+async function encodeVoiceNote(inputPath, outputPath, signal) {
+    await new Promise((resolve, reject) => {
+        const child = spawn("ffmpeg", ["-nostdin", "-hide_banner", "-loglevel", "error",
+            "-i", inputPath, "-vn", "-ac", "1", "-ar", "48000", "-c:a", "libopus",
+            "-b:a", "64k", outputPath], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"], signal });
+        let stderr = "";
+        child.stderr.setEncoding("utf8");
+        child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(-2000); });
+        child.once("error", reject);
+        child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`Audio-Konvertierung fehlgeschlagen (Exit ${code}): ${stderr}`)));
+    });
 }
 export default defineToolPlugin({
     id: "whatsapp-call-contact",
@@ -246,7 +284,7 @@ export default defineToolPlugin({
             parameters: Type.Object({
                 message: Type.String({ minLength: 1, maxLength: 1800, description: "Exact message to speak during the call." }),
             }, { additionalProperties: false }),
-            factory({ config, toolContext }) {
+            factory({ api, config, toolContext }) {
                 const briefing = config.dailyBriefing;
                 if (!briefing || !isDailyBriefingSession(toolContext.sessionKey, toolContext.agentId, briefing.automationId))
                     return null;
@@ -255,7 +293,7 @@ export default defineToolPlugin({
                 return {
                     name: "whatsapp_call_daily_briefing",
                     label: "Daily Outlook Briefing",
-                    description: "Deliver the daily briefing to Leon only. Target is fixed. In dry-run mode return a preview without TTS or a call.",
+                    description: "Deliver the daily briefing to Leon only. If unanswered after 45 seconds, send the same audio as a WhatsApp voice note. No second call. In dry-run mode return a preview only.",
                     parameters: Type.Object({
                         message: Type.String({ minLength: 1, maxLength: 1800 }),
                     }, { additionalProperties: false }),
@@ -283,7 +321,8 @@ export default defineToolPlugin({
                         const accountId = config.accountId ?? "default";
                         const storePath = path.join(os.homedir(), ".openclaw", "credentials", "whatsapp-calls", accountId, "wa-voip.db");
                         await fs.access(storePath);
-                        const tempAudio = path.join(os.tmpdir(), `openclaw-contact-call-${randomUUID()}.mp3`);
+                        const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-daily-briefing-"));
+                        const tempAudio = path.join(tempDir, "briefing.mp3");
                         try {
                             const audio = await synthesizeElevenLabs({
                                 apiKey,
@@ -312,29 +351,60 @@ export default defineToolPlugin({
                             }
                             signal?.throwIfAborted();
                             assertCurrent?.();
-                            await runMeowCaller({
-                                executable: config.meowcallerPath ?? "meowcaller",
-                                storePath,
-                                target: contact.phone,
-                                audioPath: tempAudio,
+                            const outcome = await callWithAudioFallback({
                                 signal,
+                                call: () => runMeowCaller({
+                                    executable: config.meowcallerPath ?? "meowcaller",
+                                    storePath,
+                                    target: contact.phone,
+                                    audioPath: tempAudio,
+                                    signal,
+                                }),
+                                sendAudio: async () => {
+                                    signal?.throwIfAborted();
+                                    assertCurrent?.();
+                                    const voicePath = path.join(tempDir, "briefing.ogg");
+                                    await encodeVoiceNote(tempAudio, voicePath, signal);
+                                    await fs.chmod(voicePath, 0o600);
+                                    signal?.throwIfAborted();
+                                    assertCurrent?.();
+                                    const sent = await sendDurableMessageBatch({
+                                        cfg: toolContext.getRuntimeConfig?.() ?? toolContext.runtimeConfig ?? api.config,
+                                        channel: "whatsapp",
+                                        to: contact.phone,
+                                        accountId,
+                                        payloads: [{ mediaUrl: voicePath, audioAsVoice: true }],
+                                        mediaAccess: { localRoots: [tempDir] },
+                                        signal,
+                                        assertDirectAdapterHandoff: assertCurrent,
+                                        deliveryIntentId: `daily-briefing-voice:${briefing.automationId}:${day}`,
+                                        durability: "required",
+                                    });
+                                    if (sent.status !== "sent" || !sent.receipt.primaryPlatformMessageId) {
+                                        throw new Error("Anruf nicht angenommen; Ersatz-Sprachnachricht nicht erfolgreich bestaetigt. Keine automatische Wiederholung.");
+                                    }
+                                    return sent.receipt.primaryPlatformMessageId;
+                                },
                             });
                             recordCall();
                             return {
                                 content: [
                                     {
                                         type: "text",
-                                        text: `WhatsApp-Anruf an ${contact.name} wurde erfolgreich abgespielt und beendet.`,
+                                        text: outcome.called
+                                            ? `WhatsApp-Anruf an ${contact.name} wurde erfolgreich abgespielt und beendet.`
+                                            : `Anruf nicht angenommen; dieselbe Audio wurde als WhatsApp-Sprachnachricht an ${contact.name} gesendet.`,
                                     },
                                 ],
                                 details: {
                                     success: true,
                                     contact: contact.name,
+                                    ...outcome,
                                 },
                             };
                         }
                         finally {
-                            await fs.rm(tempAudio, { force: true }).catch(() => undefined);
+                            await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
                         }
                     },
                 };

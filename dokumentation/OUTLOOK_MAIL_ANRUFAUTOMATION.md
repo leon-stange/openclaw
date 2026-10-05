@@ -15,7 +15,10 @@ Stand: 05.10.2026. Auf dem Ubuntu-Server per autorisiertem SSH eingerichtet.
 - Bei Abruffehlern sagen, welcher Teil nicht verfügbar ist, statt fälschlich
   „keine Termine“ oder „keine E-Mails“ zu melden.
 - Anrufnachricht maximal 1800 Zeichen, bestehende ElevenLabs-Stimme.
-- Keine zusätzliche Audio- oder Textzustellung nach dem geplanten Anruf.
+- Bei angenommenem Anruf keine zusätzliche Audio- oder Textzustellung.
+- Wenn nach 45 Sekunden niemand abhebt, dieselbe bereits erzeugte Audio
+  genau einmal als WhatsApp-Sprachnachricht an Leon senden. Kein zweiter Anruf,
+  keine zusätzliche Textnachricht und keine erneute ElevenLabs-Synthese.
 
 Job-ID: `c67e5c8b-837c-424a-87a7-861e44f64c50`.
 
@@ -95,6 +98,57 @@ Vor dem tatsächlichen MeowCaller-Aufruf wird ein exklusiver Tagesnachweis unter
 Weitere Versuche am selben Tag werden abgewehrt. Auch nach einem fehlgeschlagenen
 oder unklaren Anruf bleibt dieser Nachweis erhalten, um doppelte Anrufe zu
 verhindern. Deshalb kein automatischer zweiter Anruf bei Nichtannahme.
+
+Seit der Erweiterung vom 05.10.2026 sendet das Plugin bei MeowCallers ausdrücklicher
+Meldung `recipient did not answer within 45s` die vorbereitete MP3 nach
+Opus-Konvertierung als WhatsApp-Sprachnachricht. Der Inhalt und die Stimme stammen
+aus derselben TTS-Ausgabe wie für den Anruf; ffmpeg ändert nur das Audioformat.
+Versand über OpenClaws öffentliche SDK-Funktion `sendDurableMessageBatch`,
+fester Zielkontakt Leon, `audioAsVoice: true`, dauerhafte Zustellungswarteschlange
+und stabiler Intent pro Job und Berliner Datum. Erfolg nur bei bestätigtem
+Send-Ergebnis mit Plattform-Nachrichten-ID; kein Beleg für Anhören oder Lesen.
+
+Bei technischen Verbindungsfehlern, unbekanntem Ende vor Wiedergabe,
+unterbrochener Wiedergabe oder Abbruch des Laufs wird nicht pauschal eine
+Sprachnachricht gesendet. Diese Fälle beweisen keine Nichtannahme. Schlägt der
+Ersatzversand fehl, bleibt der Tagesnachweis erhalten und der Fehler wird
+gemeldet; das Plugin wiederholt weder Anruf noch Versand selbst.
+
+Build und Plugin-Validierung bestanden. Acht simulierte CLI-Tests bestanden:
+Annahme, Nichtannahme, Verbindungs-/Wiedergabefehler, fehlgeschlagener Ersatzversand
+und Abbruch. Zusätzlich registrierte Tool-Factory mit künstlichem MP3 geprüft:
+einmalige Synthese, echte Opus-Konvertierung, Audio-Payload ohne Zusatztext,
+festes Ziel, stabiler Zustellungs-Intent und Tages-Dublettensperre. Alle externen
+Dienste und Anrufergebnisse dabei simuliert; kein echter Testanruf ausgelöst.
+
+Vor Installation gesichert unter
+`~/.local/share/jarvis-repairs/briefing-fallback-before-20261005T190747Z/`
+(Plugin-Quellcode, Build, Manifest und bisheriger Automationseintrag).
+Nur der Auftragstext des bestehenden Jobs angepasst; Zeitplan, Tool-Freigaben
+und normale Chat-Zustellung bleiben erhalten. Gateway danach kontrolliert
+neu gestartet.
+
+Echter Test mit absichtlicher Nichtannahme auf Leons ausdrücklichen Wunsch:
+05.10.2026, 21:10:10–21:11:34 Uhr Berlin, rund 83 Sekunden. Den Tagesnachweis
+des vorherigen manuellen Tests zuvor in `manual-test-archives/` gesichert,
+danach genau einmal ausgeführt. Scheduler: `status: ok`,
+`completionStatus: succeeded`; Zusammenfassung meldet Nichtannahme und einmaligen
+Ersatzversand. WhatsApp-Log bestätigt um 21:11:29 den Medienversand mit
+Plattform-Nachrichten-ID `3EB08712C5879E35B93145`. Kein weiterer Anruf aktiv.
+Run-ID: `manual:c67e5c8b-837c-424a-87a7-861e44f64c50:1791227410829:1`.
+Leon hat anschließend bestätigt, dass der Test funktioniert hat und die
+Ersatz-Sprachnachricht angekommen und abspielbar ist. Die tägliche Sperre ist
+durch den neuen Versuch wieder aktiv;
+nächste reguläre Ausführung bleibt 06.10.2026 um 18:00 Uhr Berlin.
+`deliveryStatus: not-requested` betrifft nur die ausgeschaltete zusätzliche
+Scheduler-Chat-Zustellung, nicht den vom Plugin bestätigten Audio-Versand.
+
+Die CLI-Tests auf Ubuntu ausführen:
+
+```bash
+npm run build
+node --test test/daily-fallback.test.mjs
+```
 
 Status und Verlauf:
 
