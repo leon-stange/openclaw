@@ -19,6 +19,25 @@ bezeichnete Befunde stammen vom laufenden Server.
 
 ## Aktueller Stand nach Neuinstallation am 05.10.2026
 
+**Gegenseitige WhatsApp-Bestätigungen auf dem Server angewiesen:** Leon möchte
+nach Anrufen und Sprachnachrichten an Annka eine Textbestätigung; Annka soll nach
+entsprechenden Aufträgen an Leon ebenfalls eine Textbestätigung erhalten.
+Am 05.10.2026 wurde die aktive Server-`workspace/USER.md` gesichert und gezielt
+angepasst: Bestätigung ausdrücklich über das Nachrichten-Tool an den verifizierten
+Absender des aktuellen Auftrags senden, unabhängig von Text-/Audioeingang.
+Nicht mit einer nur im Dashboard gespeicherten Abschlussantwort gleichsetzen.
+Nach erfolgreicher expliziter Bestätigung intern `NO_REPLY`, ohne zweite
+Audioantwort. Versand bestätigen, tatsächliche Zustellung/Lesen nur mit
+entsprechendem Nachweis behaupten; bereits erfolgreiche Aktion bei fehlender
+Bestätigung nicht wiederholen. Anrede berücksichtigt Leon und Annka.
+Vorher belegter Vorfall: Run `58996cf4-683c-4893-bde4-a43b0b749c38`,
+05.10.2026, 20:38:21 Uhr Berlin: Sprachnachricht an Annka erfolgreich gesendet,
+danach Textbestätigung nur im Dashboard, kein WhatsApp-Send an Leon im Journal.
+Die genaue interne Unterdrückungsursache ist nicht abschließend belegt.
+Regeländerung zurückgelesen; keine Testnachricht oder Testanruf versendet.
+Praktischer Test beider Richtungen noch offen. Details:
+[WHATSAPP_ANTWORTREGELN.md](sprachnachrichten/WHATSAPP_ANTWORTREGELN.md).
+
 **Tägliche Outlook-/Mail-Anrufautomation eingerichtet und aktiviert:**
 Job `c67e5c8b-837c-424a-87a7-861e44f64c50`, Name
 `daily-outlook-mail-whatsapp-call-1800-berlin`, täglich exakt 18:00 Uhr
