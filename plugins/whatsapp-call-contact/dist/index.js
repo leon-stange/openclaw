@@ -17,6 +17,10 @@ const configSchema = Type.Object({
         automationId: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
         dryRun: Type.Optional(Type.Boolean()),
     }, { additionalProperties: false })),
+    inboxAlert: Type.Optional(Type.Object({
+        automationId: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
+        dryRun: Type.Optional(Type.Boolean()),
+    }, { additionalProperties: false })),
     authorizedCaller: Type.String({
         pattern: e164Pattern,
         description: "Setup reference for the intended owner number. Runtime authorization uses OpenClaw senderIsOwner / commands.ownerAllowFrom so WhatsApp LID senders work correctly.",
@@ -34,6 +38,52 @@ const configSchema = Type.Object({
     maxCallsPer10Minutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })),
 }, { additionalProperties: false });
 const recentCalls = [];
+export function decideInboxAlert(state, unreadCount) {
+    if (state.version !== 1 || typeof state.armed !== "boolean" || !Number.isSafeInteger(unreadCount) || unreadCount < 0) {
+        throw new Error("Ungueltiger E-Mail-Warnzustand oder Zaehler; keine Aktion.");
+    }
+    const alert = unreadCount > 7 && state.armed;
+    return { alert, state: { ...state, lastCount: unreadCount, armed: unreadCount < 7 ? true : alert ? false : state.armed } };
+}
+// Native plugin operation scoped to its configured job; no model-supplied CLI args.
+async function inboxScratch(jobId, update, signal) {
+    if (!/^[a-f0-9-]{36}$/.test(jobId))
+        throw new Error("Ungueltige Automation-ID.");
+    const args = ["automations", "scratch", jobId, "--json"];
+    if (update)
+        args.push("--set", update.content, "--expected-revision", String(update.revision));
+    return await new Promise((resolve, reject) => {
+        const child = spawn("openclaw", args, { windowsHide: true, stdio: ["ignore", "pipe", "ignore"], signal });
+        const timer = setTimeout(() => { child.kill(); reject(new Error("Automation-Scratch-Zugriff hat das Zeitlimit erreicht.")); }, 20000);
+        let stdout = "";
+        child.stdout.setEncoding("utf8");
+        child.stdout.on("data", (chunk) => {
+            stdout += chunk;
+            if (stdout.length > 524288) {
+                child.kill();
+                reject(new Error("Unerwartet grosser Scratch-Inhalt."));
+            }
+        });
+        child.once("error", (error) => { clearTimeout(timer); reject(error); });
+        child.once("close", (code) => {
+            clearTimeout(timer);
+            if (code !== 0) {
+                reject(new Error("Automation-Scratch konnte nicht gelesen/atomar gespeichert werden; keine Aktion."));
+                return;
+            }
+            try {
+                const clean = stdout.replace(/\x1b\[[0-9;]*m/g, "");
+                const result = JSON.parse(clean.slice(clean.indexOf("{")));
+                if (!Number.isSafeInteger(result.currentRevision) || result.currentRevision < 0)
+                    throw new Error("Ungueltige Scratch-Revision.");
+                resolve(result);
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
 function normalizeName(value) {
     return value.trim().toLocaleLowerCase("de-DE");
 }
@@ -148,12 +198,128 @@ async function encodeVoiceNote(inputPath, outputPath, signal) {
         child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`Audio-Konvertierung fehlgeschlagen (Exit ${code}): ${stderr}`)));
     });
 }
+async function deliverInboxAlert(params) {
+    const { config, signal, assertCurrent } = params;
+    signal?.throwIfAborted();
+    assertCurrent?.();
+    const apiKey = process.env.ELEVENLABS_API_KEY || process.env.XI_API_KEY;
+    if (!apiKey)
+        throw new Error("ElevenLabs-Key ist nicht gesetzt.");
+    assertRateLimit(config.maxCallsPer10Minutes ?? 5);
+    const accountId = config.accountId ?? "default";
+    const storePath = path.join(os.homedir(), ".openclaw", "credentials", "whatsapp-calls", accountId, "wa-voip.db");
+    await fs.access(storePath);
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-inbox-alert-"));
+    const audioPath = path.join(tempDir, "alert.mp3");
+    try {
+        const audio = await synthesizeElevenLabs({ apiKey, voiceId: config.voiceId,
+            model: config.model ?? "eleven_multilingual_v2", text: params.message, signal });
+        await fs.writeFile(audioPath, audio, { mode: 0o600 });
+        signal?.throwIfAborted();
+        assertCurrent?.();
+        const result = await callWithAudioFallback({
+            signal,
+            call: () => runMeowCaller({ executable: config.meowcallerPath ?? "meowcaller", storePath,
+                target: config.authorizedCaller, audioPath, signal }),
+            sendAudio: async () => {
+                const voicePath = path.join(tempDir, "alert.ogg");
+                await encodeVoiceNote(audioPath, voicePath, signal);
+                await fs.chmod(voicePath, 0o600);
+                signal?.throwIfAborted();
+                assertCurrent?.();
+                const sent = await sendDurableMessageBatch({ cfg: params.runtimeConfig, channel: "whatsapp",
+                    to: config.authorizedCaller, accountId,
+                    payloads: [{ mediaUrl: voicePath, audioAsVoice: true }], mediaAccess: { localRoots: [tempDir] },
+                    signal, assertDirectAdapterHandoff: assertCurrent,
+                    deliveryIntentId: `inbox-alert-voice:${params.alertId}`, durability: "required" });
+                if (sent.status !== "sent" || !sent.receipt.primaryPlatformMessageId) {
+                    throw new Error("Nicht angenommen; Ersatz-Sprachnachricht nicht bestaetigt. Keine automatische Wiederholung.");
+                }
+                return sent.receipt.primaryPlatformMessageId;
+            },
+        });
+        recordCall();
+        return result;
+    }
+    finally {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+}
 export default defineToolPlugin({
     id: "whatsapp-call-contact",
     name: "WhatsApp Call Contact",
     description: "Lets the OpenClaw owner call only pre-approved WhatsApp contacts. Audio is synthesized with ElevenLabs and delivered by MeowCaller.",
     configSchema,
     tools: (tool) => [
+        tool({
+            name: "whatsapp_check_unread_mail_alert",
+            label: "Unread Mail Threshold Alert",
+            description: "Apply the persistent unread-mail threshold gate for the bound hourly automation. Above seven call Leon once; rearm only below seven. Unanswered calls send the same audio as a voice note.",
+            parameters: Type.Object({
+                unreadCount: Type.Integer({ minimum: 0, maximum: 1000000 }),
+                latest: Type.Array(Type.Object({
+                    from: Type.String({ maxLength: 500 }),
+                    subject: Type.String({ maxLength: 500 }),
+                }, { additionalProperties: false }), { maxItems: 2 }),
+            }, { additionalProperties: false }),
+            factory({ api, config, toolContext }) {
+                const alertConfig = config.inboxAlert;
+                if (!alertConfig || !isDailyBriefingSession(toolContext.sessionKey, toolContext.agentId, alertConfig.automationId))
+                    return null;
+                const assertCurrent = toolContext.assertInvocationCurrent;
+                return {
+                    name: "whatsapp_check_unread_mail_alert",
+                    label: "Unread Mail Threshold Alert",
+                    description: "Persist threshold state for this hourly job, call fixed target Leon once above seven, rearm below seven. Never infer zero on a failed mail fetch.",
+                    parameters: Type.Object({
+                        unreadCount: Type.Integer({ minimum: 0, maximum: 1000000 }),
+                        latest: Type.Array(Type.Object({ from: Type.String({ maxLength: 500 }), subject: Type.String({ maxLength: 500 }) }, { additionalProperties: false }), { maxItems: 2 }),
+                    }, { additionalProperties: false }),
+                    executionMode: "sequential",
+                    async execute(_toolCallId, raw, signal) {
+                        const params = raw;
+                        signal?.throwIfAborted();
+                        assertCurrent?.();
+                        const scratch = await inboxScratch(alertConfig.automationId, undefined, signal);
+                        const state = scratch.scratch ? JSON.parse(scratch.scratch.content) : { version: 1, armed: true };
+                        const decision = decideInboxAlert(state, params.unreadCount);
+                        if (decision.alert && params.latest.length !== 2)
+                            throw new Error("Zwei neueste E-Mails fehlen; Zustand unveraendert.");
+                        if (alertConfig.dryRun)
+                            return {
+                                content: [{ type: "text", text: "Vorschau: keine Zustandsaenderung und kein Anruf." }],
+                                details: { dryRun: true, wouldAlert: decision.alert, unreadCount: params.unreadCount, armed: decision.state.armed },
+                            };
+                        const checkedAt = new Date().toISOString();
+                        const nextState = { ...decision.state, checkedAt,
+                            ...(decision.alert ? { alertId: randomUUID(), attemptedAt: checkedAt } : {}) };
+                        signal?.throwIfAborted();
+                        assertCurrent?.();
+                        const saved = await inboxScratch(alertConfig.automationId, {
+                            content: JSON.stringify(nextState), revision: scratch.currentRevision,
+                        }, signal);
+                        if (!saved.ok)
+                            throw new Error("Warnzustand wurde gleichzeitig geaendert; keine Aktion.");
+                        if (!decision.alert)
+                            return {
+                                content: [{ type: "text", text: nextState.armed ? "Keine Warnung; Schwelle wieder freigegeben." : "Keine weitere Warnung; Sperre aktiv." }],
+                                details: { alerted: false, unreadCount: params.unreadCount, armed: nextState.armed },
+                            };
+                        const clean = (value, fallback) => value.replace(/\s+/g, " ").trim().slice(0, 180) || fallback;
+                        const latest = params.latest.map((mail, index) => `${index + 1}: Von ${clean(mail.from, "unbekanntem Absender")}. Betreff: ${clean(mail.subject, "ohne Betreff")}.`).join(" ");
+                        const message = `Hallo Leon, Jarvis hier. Du hast ${params.unreadCount} ungelesene E-Mails im Posteingang. Es sind viele E-Mails offen. Die zwei neuesten: ${latest}`;
+                        const outcome = await deliverInboxAlert({ config,
+                            runtimeConfig: toolContext.getRuntimeConfig?.() ?? toolContext.runtimeConfig ?? api.config,
+                            message, alertId: nextState.alertId, assertCurrent, signal });
+                        return {
+                            content: [{ type: "text", text: outcome.called ? "E-Mail-Warnanruf abgeschlossen; Sperre aktiv."
+                                        : "Nicht angenommen; E-Mail-Warnung als Sprachnachricht gesendet; Sperre aktiv." }],
+                            details: { alerted: true, unreadCount: params.unreadCount, armed: false, ...outcome },
+                        };
+                    },
+                };
+            },
+        }),
         tool({
             name: "whatsapp_call_contact",
             label: "WhatsApp Call Contact",

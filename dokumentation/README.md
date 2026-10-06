@@ -7,6 +7,7 @@ diesem Ordner. Die Sprachnachrichten-Dokumentation ist im Unterordner
 - [Erinnerungen und aktueller Projektstand](ERINNERUNGEN.md)
 - [Outlook-MCP auf dem neuen Server](OUTLOOK_MCP_NEUER_SERVER.md)
 - [Täglicher Outlook- und E-Mail-Anruf um 18 Uhr](OUTLOOK_MAIL_ANRUFAUTOMATION.md)
+- [Stündliche Warnung bei vielen ungelesenen E-Mails](OUTLOOK_UNGELESEN_WARNUNG.md)
 - [ElevenLabs für Spracherkennung und Sprachantworten](sprachnachrichten/ELEVENLABS_UMSTELLUNG.md)
 - [WhatsApp-Antwortregeln](sprachnachrichten/WHATSAPP_ANTWORTREGELN.md)
 - [Annka als zusätzlichen Owner einrichten](sprachnachrichten/ANNKA_OWNER.md)

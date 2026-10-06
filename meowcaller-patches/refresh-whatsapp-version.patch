@@ -1,0 +1,20 @@
+diff --git a/cmd/meowcaller/session.go b/cmd/meowcaller/session.go
+index 8e0dcc7..acca29d 100644
+--- a/cmd/meowcaller/session.go
++++ b/cmd/meowcaller/session.go
+@@ -108,6 +108,15 @@ func sqliteDSN(path string) string {
+ }
+ 
+ func (s *linkedSession) Connect(ctx context.Context, qrOut io.Writer, allowQR bool) error {
++	// jarvis-wa-version-refresh-v1: resolve the supported web version before connecting.
++	versionCtx, cancelVersion := context.WithTimeout(ctx, 15*time.Second)
++	latestVersion, versionErr := whatsmeow.GetLatestVersion(versionCtx, nil)
++	cancelVersion()
++	if versionErr != nil {
++		return fmt.Errorf("refresh WhatsApp web version: %w", versionErr)
++	}
++	store.SetWAVersion(*latestVersion)
++	zerolog.Ctx(ctx).Info().Str("version", latestVersion.String()).Msg("WhatsApp web version refreshed")
+ 	if s.client.Store.ID == nil {
+ 		if !allowQR {
+ 			return errors.New("linked device not paired; rerun notify in an interactive terminal and scan the QR code")

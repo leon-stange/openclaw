@@ -14,6 +14,38 @@
       "voiceId"
     ],
     "properties": {
+      "dailyBriefing": {
+        "type": "object",
+        "required": [
+          "automationId"
+        ],
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "pattern": "^[a-f0-9-]{36}$"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "inboxAlert": {
+        "type": "object",
+        "required": [
+          "automationId"
+        ],
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "pattern": "^[a-f0-9-]{36}$"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "authorizedCaller": {
         "type": "string",
         "pattern": "^\\+[1-9]\\d{7,14}$",
@@ -82,28 +114,13 @@
         "type": "integer",
         "minimum": 1,
         "maximum": 20
-      },
-      "dailyBriefing": {
-        "type": "object",
-        "properties": {
-          "automationId": {
-            "type": "string",
-            "pattern": "^[a-f0-9-]{36}$"
-          },
-          "dryRun": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "automationId"
-        ],
-        "additionalProperties": false
       }
     },
     "additionalProperties": false
   },
   "contracts": {
     "tools": [
+      "whatsapp_check_unread_mail_alert",
       "whatsapp_call_contact",
       "whatsapp_call_contacts",
       "whatsapp_call_daily_briefing"

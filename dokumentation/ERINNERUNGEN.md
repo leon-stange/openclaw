@@ -1,6 +1,29 @@
 # Jarvis / OpenClaw – Erinnerungen für die Weiterarbeit
 
-Stand: 05.10.2026
+Stand: 06.10.2026
+
+## Ergänzung vom 06.10.2026: stündliche E-Mail-Warnung
+
+Leon berichtet nach einem Tag Nutzung, dass der aktuelle Stand gut funktioniert.
+Neue Automation `19bcc650-d420-44e6-91ff-8cbc43bec279`, Name
+`hourly-unread-mail-threshold-call-leon`: stündlich um fünf nach in
+`Europe/Berlin`, isoliert, Agent `main`. Bei mehr als sieben ungelesenen Mails
+im Outlook-Posteingang einmal anrufen und Absender/Betreff der zwei neuesten
+ungelesenen Mails nennen. Bei Nichtannahme nach 45 Sekunden dieselbe Audio
+als Sprachnachricht. Erst eine spätere Prüfung **unter sieben** gibt wieder
+frei; genau sieben setzt nicht zurück. Persistente Sperre im privaten
+Automation-Scratch mit Revisionsprüfung, nicht nur im Prompt oder RAM.
+Neues Plugin-Tool `whatsapp_check_unread_mail_alert` an diesen Job und Leon
+gebunden. Bestehendes tägliches Briefing und Kontakt-Tools bleiben erhalten.
+Details und Prüfungen: [OUTLOOK_UNGELESEN_WARNUNG.md](OUTLOOK_UNGELESEN_WARNUNG.md).
+
+Erster echter Versuch mit neun Mails am 06.10. um 17:26 scheiterte vor dem
+Wählen an MeowCaller `Client outdated (405)`. MeowCaller aktualisiert jetzt
+vor jeder Verbindung die WhatsApp-Web-Version; realer Verbindungstest ohne
+Anruf erfolgreich, Binary auf dem Server ersetzt. Kein OpenClaw-Update.
+Scratch einmalig nach gesichertem Nichtversand wieder freigegeben, nächster
+regulärer Lauf 18:05. Noch kein bestätigter Warnanruf nach der Reparatur.
+Patch und genaue Belege stehen in der verlinkten Anleitung.
 
 **Ablage:** Unsere Markdown-Dokumentation liegt unter `dokumentation/`;
 Anleitungen zu Sprachnachrichten unter `dokumentation/sprachnachrichten/`.
