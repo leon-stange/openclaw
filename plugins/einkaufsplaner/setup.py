@@ -31,6 +31,7 @@ if str(root) not in paths:
     paths = paths + [str(root)]
 entry = config.get('plugins', {}).get('entries', {}).get('einkaufsplaner', {})
 entry = {**entry, 'enabled': True, 'config': {
+    **entry.get('config', {}),
     'passwordFile': str(password_file), 'stateDir': str(root / 'state'),
 }}
 batch = [

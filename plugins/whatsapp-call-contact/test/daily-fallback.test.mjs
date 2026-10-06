@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { callWithAudioFallback, runMeowCaller } from '../dist/index.js';
@@ -11,9 +11,12 @@ async function fakeCall(stderr, exitCode, run) {
   const executable = path.join(dir, 'caller');
   await writeFile(executable, `#!/bin/sh\nprintf '%s\\n' '${stderr}' >&2\nexit ${exitCode}\n`, { mode: 0o700 });
   const audioPath = path.join(dir, 'original.mp3');
+  const savedHome = process.env.HOME;
+  process.env.HOME = dir;
   try {
-    await run(() => runMeowCaller({ executable, storePath: '/unused', target: 'unused', audioPath }), audioPath);
+    await run(() => runMeowCaller({ executable, storePath: '/unused', target: 'unused', audioPath }), audioPath, dir);
   } finally {
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
     await rm(dir, { recursive: true, force: true });
   }
 }
@@ -22,6 +25,22 @@ test('answered call does not send fallback', async () => {
   await fakeCall('', 0, async (call) => {
     const result = await callWithAudioFallback({ call, sendAudio: () => { assert.fail('unexpected send'); } });
     assert.deepEqual(result, { called: true });
+  });
+});
+
+test('diagnostic retains phases and failure reason even after successful fallback', async () => {
+  const stderr = '{"jarvis_call_event":"connected","time":"2026-10-06T17:00:00Z","token":"must-not-be-saved"}\n' +
+    '{"jarvis_call_event":"call_placed","time":"2026-10-06T17:00:01Z"}\ncall ended before playback: remote';
+  await fakeCall(stderr, 1, async (call, _, dir) => {
+    await callWithAudioFallback({ call, fallbackOnCallError: true, sendAudio: async () => 'test-message' });
+    const root = path.join(dir, '.openclaw/state/call-diagnostics');
+    const names = await readdir(root); assert.equal(names.length, 1);
+    const raw = await readFile(path.join(root, names[0]), 'utf8');
+    const d = JSON.parse(raw);
+    assert.equal(d.reason, 'call ended before playback: remote');
+    assert.deepEqual(d.phases.map(x=>x.phase), ['connected','call_placed']);
+    assert.equal(d.exitCode,1); assert.equal(raw.includes('must-not-be-saved'),false);
+    assert.equal(raw.includes('/unused'),false); assert.equal(raw.includes('"target":'),false);
   });
 });
 

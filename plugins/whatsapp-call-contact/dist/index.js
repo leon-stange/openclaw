@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +21,10 @@ const configSchema = Type.Object({
         automationId: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
         dryRun: Type.Optional(Type.Boolean()),
     }, { additionalProperties: false })),
+    shoppingReminder: Type.Optional(Type.Object({
+        automationId: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
+        dryRun: Type.Optional(Type.Boolean()),
+    }, { additionalProperties: false })),
     authorizedCaller: Type.String({
         pattern: e164Pattern,
         description: "Setup reference for the intended owner number. Runtime authorization uses OpenClaw senderIsOwner / commands.ownerAllowFrom so WhatsApp LID senders work correctly.",
@@ -38,6 +42,15 @@ const configSchema = Type.Object({
     maxCallsPer10Minutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })),
 }, { additionalProperties: false });
 const recentCalls = [];
+export function shoppingReminderMessage(name, count) {
+    return `Hallo ${name}, ${name === "Annka" ? "JARVIS" : "Jarvis"} hier. Ich habe festgestellt, dass auf eurer Einkaufsliste Einkaufen erst ${count} offene Artikel stehen. Die Liste scheint noch nicht vollständig zu sein und müsste noch ausgefüllt werden. Wenn ihr möchtet, kontaktiert mich per WhatsApp. Ich kann auch Artikel auf die Liste schreiben.`;
+}
+export function shoppingReminderPeriod(now = new Date()) {
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    const day = new Date(`${date}T12:00:00Z`);
+    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 4) % 7);
+    return day.toISOString().slice(0, 10);
+}
 export function decideInboxAlert(state, unreadCount) {
     if (state.version !== 1 || typeof state.armed !== "boolean" || !Number.isSafeInteger(unreadCount) || unreadCount < 0) {
         throw new Error("Ungueltiger E-Mail-Warnzustand oder Zaehler; keine Aktion.");
@@ -149,7 +162,7 @@ export async function callWithAudioFallback(params) {
     }
     catch (error) {
         params.signal?.throwIfAborted();
-        if (!isUnansweredCall(error))
+        if (!params.fallbackOnCallError && !isUnansweredCall(error))
             throw error;
         return { called: false, fallbackMessageId: await params.sendAudio() };
     }
@@ -161,6 +174,7 @@ export async function runMeowCaller(params) {
             stdio: ["ignore", "pipe", "pipe"],
             signal: params.signal,
         });
+        const startedAt = new Date().toISOString();
         let stderr = "";
         child.stderr.setEncoding("utf8");
         child.stderr.on("data", (chunk) => {
@@ -171,7 +185,32 @@ export async function runMeowCaller(params) {
         child.once("error", (error) => {
             reject(new Error(`MeowCaller konnte nicht gestartet werden: ${error.message}`));
         });
-        child.once("close", (code) => {
+        child.once("close", async (code) => {
+            // Persist only our structured phases and known error classes, never raw logs,
+            // phone numbers, credentials, audio text or paths from the CLI.
+            const phases = [];
+            for (const line of stderr.split("\n")) {
+                try {
+                    const event = JSON.parse(line);
+                    if (typeof event.jarvis_call_event === "string" && /^[a-z_]+$/.test(event.jarvis_call_event)) {
+                        phases.push({ phase: event.jarvis_call_event, ...(typeof event.time === "string" ? { time: event.time } : {}),
+                            ...(Number.isSafeInteger(event.frames) ? { frames: event.frames } : {}) });
+                    }
+                }
+                catch { /* Only structured phase events are retained. */ }
+            }
+            const known = stderr.split("\n").reverse().find(line => /^(call ended (before|during) playback:|recipient did not answer within|timed out waiting for WhatsApp connection|audio playback failed:|audio input contained no frames|notification exceeded)/.test(line));
+            const reason = known?.replace(/\+?\d{10,16}(?:@(?:s\.whatsapp\.net|lid))?/g, "[redacted]").slice(0, 250)
+                ?? (stderr.includes("Client outdated (405)") ? "Client outdated (405)" : code === 0 ? undefined : "Unclassified call failure");
+            try {
+                const dir = path.join(os.homedir(), ".openclaw", "state", "call-diagnostics");
+                await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+                await fs.writeFile(path.join(dir, `${randomUUID()}.json`), JSON.stringify({
+                    startedAt, endedAt: new Date().toISOString(), exitCode: code, phases, reason,
+                    targetHash: createHash("sha256").update(params.target).digest("hex").slice(0, 16),
+                }), { mode: 0o600 });
+            }
+            catch { /* A diagnostic storage failure must not change call delivery. */ }
             if (code === 0) {
                 resolve();
                 return;
@@ -219,8 +258,9 @@ async function deliverInboxAlert(params) {
         assertCurrent?.();
         const result = await callWithAudioFallback({
             signal,
+            fallbackOnCallError: params.fallbackOnCallError,
             call: () => runMeowCaller({ executable: config.meowcallerPath ?? "meowcaller", storePath,
-                target: config.authorizedCaller, audioPath, signal }),
+                target: params.target ?? config.authorizedCaller, audioPath, signal }),
             sendAudio: async () => {
                 const voicePath = path.join(tempDir, "alert.ogg");
                 await encodeVoiceNote(audioPath, voicePath, signal);
@@ -228,10 +268,10 @@ async function deliverInboxAlert(params) {
                 signal?.throwIfAborted();
                 assertCurrent?.();
                 const sent = await sendDurableMessageBatch({ cfg: params.runtimeConfig, channel: "whatsapp",
-                    to: config.authorizedCaller, accountId,
+                    to: params.target ?? config.authorizedCaller, accountId,
                     payloads: [{ mediaUrl: voicePath, audioAsVoice: true }], mediaAccess: { localRoots: [tempDir] },
                     signal, assertDirectAdapterHandoff: assertCurrent,
-                    deliveryIntentId: `inbox-alert-voice:${params.alertId}`, durability: "required" });
+                    deliveryIntentId: `${params.intentPrefix ?? "inbox-alert-voice"}:${params.alertId}`, durability: "required" });
                 if (sent.status !== "sent" || !sent.receipt.primaryPlatformMessageId) {
                     throw new Error("Nicht angenommen; Ersatz-Sprachnachricht nicht bestaetigt. Keine automatische Wiederholung.");
                 }
@@ -251,6 +291,69 @@ export default defineToolPlugin({
     description: "Lets the OpenClaw owner call only pre-approved WhatsApp contacts. Audio is synthesized with ElevenLabs and delivered by MeowCaller.",
     configSchema,
     tools: (tool) => [
+        tool({
+            name: "whatsapp_weekly_shopping_reminder",
+            label: "Weekly Shopping Reminder",
+            description: "Bound weekly automation only: below ten open shopping items call Leon and Annka separately with personalized audio, voice fallback for call failure. At most once per Wednesday cycle.",
+            parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }) }, { additionalProperties: false }),
+            factory({ api, config, toolContext }) {
+                const reminder = config.shoppingReminder;
+                if (!reminder || !isDailyBriefingSession(toolContext.sessionKey, toolContext.agentId, reminder.automationId))
+                    return null;
+                const annka = findContact(config.contacts, "Annka");
+                if (!annka || annka.phone === config.authorizedCaller)
+                    throw new Error("Annka ist nicht eindeutig als anderer Kontakt konfiguriert.");
+                return {
+                    name: "whatsapp_weekly_shopping_reminder", label: "Weekly Shopping Reminder",
+                    description: "Use the verified count of open items on Einkaufen. No call at ten or more. Calls fixed Leon and Annka, each once per weekly cycle. Never invent zero on an API failure.",
+                    parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }) }, { additionalProperties: false }),
+                    executionMode: "sequential",
+                    async execute(_id, raw, signal) {
+                        const { openCount } = raw;
+                        if (!Number.isSafeInteger(openCount) || openCount < 0)
+                            throw new Error("Ungueltiger Artikelzaehler.");
+                        const assertCurrent = toolContext.assertInvocationCurrent;
+                        signal?.throwIfAborted();
+                        assertCurrent?.();
+                        const period = shoppingReminderPeriod();
+                        const scratch = await inboxScratch(reminder.automationId, undefined, signal);
+                        const state = scratch.scratch ? JSON.parse(scratch.scratch.content) : { version: 1 };
+                        if (state.version !== 1)
+                            throw new Error("Ungueltiger Erinnerungszustand.");
+                        const wouldAlert = openCount < 10 && state.attemptedPeriod !== period;
+                        const messages = [shoppingReminderMessage("Leon", openCount), shoppingReminderMessage("Annka", openCount)];
+                        if (reminder.dryRun)
+                            return { content: [{ type: "text", text: "Vorschau ohne Anruf, Versand oder Zustandsaenderung." }],
+                                details: { dryRun: true, openCount, wouldAlert, messages } };
+                        const next = { ...state, checkedAt: new Date().toISOString(), openCount,
+                            ...(wouldAlert ? { attemptedPeriod: period } : {}) };
+                        const saved = await inboxScratch(reminder.automationId, { content: JSON.stringify(next), revision: scratch.currentRevision }, signal);
+                        if (!saved.ok)
+                            throw new Error("Erinnerungszustand nicht gespeichert; keine Anrufe.");
+                        if (!wouldAlert)
+                            return { content: [{ type: "text", text: openCount >= 10 ? "Mindestens zehn offene Artikel; keine Erinnerung." : "Diese Woche bereits versucht; keine Wiederholung." }], details: { openCount, alerted: false } };
+                        const results = [];
+                        for (const [index, contact] of [{ name: "Leon", phone: config.authorizedCaller }, { name: "Annka", phone: annka.phone }].entries()) {
+                            signal?.throwIfAborted();
+                            assertCurrent?.();
+                            try {
+                                const outcome = await deliverInboxAlert({ config,
+                                    runtimeConfig: toolContext.getRuntimeConfig?.() ?? toolContext.runtimeConfig ?? api.config,
+                                    message: messages[index], alertId: `${reminder.automationId}:${period}:${contact.name}`,
+                                    target: contact.phone, fallbackOnCallError: true, intentPrefix: "shopping-reminder-voice", assertCurrent, signal });
+                                results.push({ contact: contact.name, success: true, ...outcome });
+                            }
+                            catch {
+                                signal?.throwIfAborted();
+                                assertCurrent?.();
+                                results.push({ contact: contact.name, success: false, error: "Anruf/Audio nicht bestaetigt; keine automatische Wiederholung." });
+                            }
+                        }
+                        return { content: [{ type: "text", text: JSON.stringify(results) }], details: { openCount, alerted: true, results } };
+                    },
+                };
+            },
+        }),
         tool({
             name: "whatsapp_check_unread_mail_alert",
             label: "Unread Mail Threshold Alert",

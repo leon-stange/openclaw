@@ -46,6 +46,22 @@
         },
         "additionalProperties": false
       },
+      "shoppingReminder": {
+        "type": "object",
+        "required": [
+          "automationId"
+        ],
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "pattern": "^[a-f0-9-]{36}$"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "authorizedCaller": {
         "type": "string",
         "pattern": "^\\+[1-9]\\d{7,14}$",
@@ -120,6 +136,7 @@
   },
   "contracts": {
     "tools": [
+      "whatsapp_weekly_shopping_reminder",
       "whatsapp_check_unread_mail_alert",
       "whatsapp_call_contact",
       "whatsapp_call_contacts",

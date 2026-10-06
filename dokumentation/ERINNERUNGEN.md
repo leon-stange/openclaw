@@ -2,6 +2,31 @@
 
 Stand: 06.10.2026
 
+## Ergänzung vom 06.10.2026: Einkaufs-Erinnerung am Mittwoch
+
+Job `6e6d41db-2988-4b6c-9bff-b5322527cbd2`, jeden Mittwoch exakt 12:00 Uhr
+Europe/Berlin. Prüft offene Artikel auf Einkaufen. Weniger als zehn:
+persönlicher Anruf an Leon und Annka; bei Nichtannahme oder technischem
+Anruffehler die jeweilige vorbereitete Audio als Sprachnachricht. Zehn oder
+mehr: keine Erinnerung. Ein Versuch je Mittwoch-Zyklus durch privaten Scratch
+mit Revisionsprüfung; nächste Woche bei weiterhin kurzer Liste erneut.
+Die Einkaufs-App bleibt unverändert, Schreibrechte der Chat-Tools unverändert.
+Automationskontext bekommt ausschließlich das Lesen der offenen Standardliste
+und das feste Erinnerungs-Tool, keine frei wählbaren Empfänger.
+
+20 Tests und beide nativen Plugin-Validierungen erfolgreich. Echter Vorschaulauf
+mit null offenen Artikeln erfolgreich, ohne Versand oder Scratch-Änderung.
+Regulärer Start am 07.10.2026 um 12:00 Berlin. Nach zunächst stillem Anruf
+zusätzliche private Phasendiagnose in MeowCaller und im Plugin installiert;
+Go-Tests, 14 Anruf-Plugin-Tests und Plugin-Validierung erfolgreich. Die
+Wochensperre beim erneuten manuellen Lauf griff nachweislich. Auf Wunsch
+Leons einmalig gesichert zurückgesetzt. Abschließend bestätigt Leon beim
+selbst gestarteten Automationslauf hörbare Audio im Anruf und nach absichtlichem
+Auflegen erfolgreich eingegangene Sprachnachricht. Annkas Anruf vom ersten
+Lauf ist nur durch den Client als abgeschlossen bestätigt. Diagnose bleibt
+aktiv; Ursache der ersten Stille weiterhin offen. Details und Backup:
+[EINKAUF_MITTWOCH_ERINNERUNG.md](EINKAUF_MITTWOCH_ERINNERUNG.md).
+
 ## Ergänzung vom 06.10.2026: Einkaufs-PWA angebunden und getestet
 
 Eigenes Plugin `einkaufsplaner` unter `plugins/einkaufsplaner`, auf dem Server

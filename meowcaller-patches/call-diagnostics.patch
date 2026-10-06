@@ -1,0 +1,72 @@
+diff --git a/cmd/meowcaller/notify.go b/cmd/meowcaller/notify.go
+index 0ed9bc8..d19059f 100644
+--- a/cmd/meowcaller/notify.go
++++ b/cmd/meowcaller/notify.go
+@@ -91,10 +91,12 @@ func runNotify(ctx context.Context, cfg notifyConfig, stderr io.Writer) error {
+ 		return err
+ 	}
+ 
++	zerolog.Ctx(ctx).Log().Str("jarvis_call_event", "connected").Msg("notification phase")
+ 	call, err := client.Call(ctx, cfg.target)
+ 	if err != nil {
+ 		return fmt.Errorf("place call: %w", err)
+ 	}
++	zerolog.Ctx(ctx).Log().Str("jarvis_call_event", "call_placed").Msg("notification phase")
+ 	return playNotification(ctx, call, source, cfg.answerTimeout, cfg.maxDuration)
+ }
+ 
+@@ -129,18 +131,26 @@ func playNotification(ctx context.Context, call *meowcaller.Call, source meowcal
+ 	finished := make(chan error, 1)
+ 	ended := make(chan string, 1)
+ 	player := meowcaller.NewPlayer()
+-	monitored := &monitoredSource{AudioSource: source}
++	monitored := &monitoredSource{AudioSource: source, diagnosticCtx: ctx}
+ 	var start sync.Once
+ 
+-	player.OnFinish(func() { finished <- monitored.result() })
++	player.OnFinish(func() {
++		monitored.mu.Lock()
++		frames := monitored.frames
++		monitored.mu.Unlock()
++		zerolog.Ctx(ctx).Log().Str("jarvis_call_event", "playback_finished").Int("frames", frames).Msg("notification phase")
++		finished <- monitored.result()
++	})
+ 	call.Subscribe(player)
+ 	startPlayback := func() {
+ 		start.Do(func() {
++			zerolog.Ctx(ctx).Log().Str("jarvis_call_event", "media_ready").Msg("notification phase")
+ 			player.Play(monitored)
+ 			ready <- struct{}{}
+ 		})
+ 	}
+ 	reportEnd := func(reason string) {
++		zerolog.Ctx(ctx).Log().Str("jarvis_call_event", "call_ended").Msg("notification phase")
+ 		select {
+ 		case ended <- reason:
+ 		default:
+@@ -227,6 +237,7 @@ func waitNotification(
+ 
+ type monitoredSource struct {
+ 	meowcaller.AudioSource
++	diagnosticCtx context.Context
+ 
+ 	mu     sync.Mutex
+ 	frames int
+@@ -236,6 +247,7 @@ type monitoredSource struct {
+ func (s *monitoredSource) ReadFrame() ([]float32, error) {
+ 	frame, err := s.AudioSource.ReadFrame()
+ 	s.mu.Lock()
++	firstFrame := len(frame) > 0 && s.frames == 0
+ 	if len(frame) > 0 {
+ 		s.frames++
+ 	}
+@@ -243,6 +255,9 @@ func (s *monitoredSource) ReadFrame() ([]float32, error) {
+ 		s.err = err
+ 	}
+ 	s.mu.Unlock()
++	if firstFrame && s.diagnosticCtx != nil {
++		zerolog.Ctx(s.diagnosticCtx).Log().Str("jarvis_call_event", "first_audio_frame").Msg("notification phase")
++	}
+ 	return frame, err
+ }
+ 

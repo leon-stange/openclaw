@@ -38,6 +38,11 @@ Admin-Funktionen, kein Löschen, kein direktes Schreiben in die App-Datenbank.
 Die vorhandenen API-Routen bewahren Gruppenzuordnung, Aktivitätsereignisse
 und Aktualisierung geöffneter PWAs.
 
+Seit der Mittwoch-Erinnerung gibt es zusätzlich eine enge Automationsfreigabe:
+Nur der gebundene Wochenjob darf `einkauf_liste_lesen` für offene Artikel auf
+Einkaufen verwenden. Artikel hinzufügen oder abhaken bleibt den Owner-Chats
+vorbehalten. Details: [EINKAUF_MITTWOCH_ERINNERUNG.md](EINKAUF_MITTWOCH_ERINNERUNG.md).
+
 ## Passwort hinterlegen und aktivieren
 
 Auf dem Ubuntu-Server im normalen interaktiven SSH-Terminal ausführen:

@@ -17,6 +17,19 @@
       "stateDir": {
         "type": "string",
         "minLength": 1
+      },
+      "shoppingReminder": {
+        "type": "object",
+        "required": [
+          "automationId"
+        ],
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "pattern": "^[a-f0-9-]{36}$"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "additionalProperties": false

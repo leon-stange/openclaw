@@ -6,6 +6,7 @@ import { ShoppingClient } from './client.mjs';
 const configSchema = Type.Object({
   passwordFile: Type.String({ minLength: 1 }),
   stateDir: Type.String({ minLength: 1 }),
+  shoppingReminder: Type.Optional(Type.Object({ automationId: Type.String({ pattern: '^[a-f0-9-]{36}$' }) }, { additionalProperties: false })),
 }, { additionalProperties: false });
 const listName = Type.Optional(Type.String({ minLength: 1, maxLength: 100 }));
 const schemas = {
@@ -27,6 +28,12 @@ const descriptions = {
 };
 let client;
 let clientKey;
+export function isWeeklyReadContext(name, context, job) {
+  if (name !== 'einkauf_liste_lesen' || !job || context.agentId !== 'main') return false;
+  const base = `agent:main:cron:${job}`;
+  return context.sessionKey === base || context.sessionKey?.startsWith(`${base}:run:`) &&
+    /^[a-f0-9-]{36}$/.test(context.sessionKey.slice(`${base}:run:`.length));
+}
 export default defineToolPlugin({
   id: 'einkaufsplaner', name: 'Jarvis Einkaufsplaner',
   description: 'Read, add and check off items in the existing PWA as Jarvis.',
@@ -34,7 +41,9 @@ export default defineToolPlugin({
   tools: tool => Object.entries(schemas).map(([name, parameters]) => tool({
     name, label: name, description: descriptions[name], parameters,
     factory({ config, toolContext }) {
-      if (toolContext.messageChannel !== 'whatsapp' || toolContext.senderIsOwner !== true) return null;
+      const job = config.shoppingReminder?.automationId;
+      const weeklyRead = isWeeklyReadContext(name, toolContext, job);
+      if (!weeklyRead && (toolContext.messageChannel !== 'whatsapp' || toolContext.senderIsOwner !== true)) return null;
       const key = JSON.stringify(config);
       if (!client || key !== clientKey) {
         if (!path.isAbsolute(config.passwordFile) || !path.isAbsolute(config.stateDir)) throw new Error('Absolute Plugin-Pfade erforderlich.');
@@ -46,6 +55,9 @@ export default defineToolPlugin({
         async execute(toolCallId, params, signal) {
           const assertCurrent = toolContext.assertInvocationCurrent;
           signal?.throwIfAborted(); assertCurrent?.();
+          if (weeklyRead && ((params.listName && params.listName !== 'Einkaufen') || params.includeCompleted)) {
+            throw new Error('Die Wochenautomation darf nur offene Artikel auf Einkaufen lesen.');
+          }
           let result;
           if (name === 'einkauf_listen_lesen') {
             const lists = await current.lists(signal, assertCurrent);
