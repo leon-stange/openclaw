@@ -41,7 +41,7 @@ und Aktualisierung geöffneter PWAs.
 Seit der Mittwoch-Erinnerung gibt es zusätzlich eine enge Automationsfreigabe:
 Nur der gebundene Wochenjob darf `einkauf_liste_lesen` für offene Artikel auf
 Einkaufen verwenden. Artikel hinzufügen oder abhaken bleibt den Owner-Chats
-vorbehalten. Details: [EINKAUF_MITTWOCH_ERINNERUNG.md](EINKAUF_MITTWOCH_ERINNERUNG.md).
+vorbehalten. Details: [EINKAUF_DONNERSTAG_ERINNERUNG.md](EINKAUF_DONNERSTAG_ERINNERUNG.md).
 
 ## Passwort hinterlegen und aktivieren
 

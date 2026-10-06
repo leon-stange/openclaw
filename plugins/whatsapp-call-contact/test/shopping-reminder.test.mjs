@@ -13,12 +13,14 @@ registerHooks({ resolve(spec, ctx, next) {
 } });
 const { default: entry, shoppingReminderMessage, shoppingReminderPeriod } = await import('../dist/index.js');
 const id = '6e6d41db-2988-4b6c-9bff-b5322527cbd2';
-test('personal greetings and Wednesday cycle including Berlin date boundary', () => {
+test('personal greetings and Thursday cycle including Berlin date boundary', () => {
   assert.match(shoppingReminderMessage('Leon', 9), /^Hallo Leon, Jarvis hier\./);
   assert.match(shoppingReminderMessage('Annka', 9), /^Hallo Annka, JARVIS hier\./);
-  assert.equal(shoppingReminderPeriod(new Date('2026-10-07T10:00:00Z')), '2026-10-07');
-  assert.equal(shoppingReminderPeriod(new Date('2026-10-06T22:05:00Z')), '2026-10-07');
-  assert.equal(shoppingReminderPeriod(new Date('2026-10-14T10:00:00Z')), '2026-10-14');
+  assert.equal(shoppingReminderPeriod(new Date('2026-10-08T14:00:00Z')), '2026-10-08');
+  assert.equal(shoppingReminderPeriod(new Date('2026-10-07T22:05:00Z')), '2026-10-08');
+  assert.equal(shoppingReminderPeriod(new Date('2026-10-07T10:00:00Z')), '2026-10-01');
+  assert.equal(shoppingReminderPeriod(new Date('2026-10-15T14:00:00Z')), '2026-10-15');
+  assert.equal(shoppingReminderPeriod(new Date('2026-10-29T15:00:00Z')), '2026-10-29');
 });
 test('threshold, separate failed-call audio, weekly deduplication, CAS and preview', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'shopping-reminder-test-'));

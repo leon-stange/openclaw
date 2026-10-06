@@ -1,14 +1,14 @@
-# Einkaufsliste: Erinnerung am Mittwoch
+# Einkaufsliste: Erinnerung am Donnerstag
 
-Stand: 06.10.2026. Gewünschter Ablauf: jeden Mittwoch exakt 12:00 Uhr
+Stand: 06.10.2026. Aktueller Ablauf: jeden Donnerstag exakt 16:00 Uhr
 Europe/Berlin die **offenen** Artikel der Liste **Einkaufen** prüfen.
 Erledigte Artikel zählen nicht, Mengen zählen nicht als mehrere Artikel.
 Bei zehn oder mehr offenen Artikeln keine Nachricht und kein Anruf.
 Bei null bis neun offenen Artikeln einmal Leon und einmal Annka anrufen.
 
 Job-ID: `6e6d41db-2988-4b6c-9bff-b5322527cbd2`.
-Name: `weekly-shopping-completeness-wednesday-noon`.
-Cron: `0 12 * * 3`, exakt, Zeitzone Europe/Berlin, Agent main, isoliert,
+Name: `weekly-shopping-completeness-thursday-1600`.
+Cron: `0 16 * * 4`, exakt, Zeitzone Europe/Berlin, Agent main, isoliert,
 360 Sekunden Zeitlimit, keine zusätzliche automatische Chat-Zustellung.
 Nur zwei Tools: `einkauf_liste_lesen` und `whatsapp_weekly_shopping_reminder`.
 
@@ -44,8 +44,8 @@ Audioausgabe; erfolgreicher Versand bedeutet Plattformbestätigung, nicht Lesen.
 ## Zustand und Fehler
 
 Vor den Anrufen wird der private Automation-Scratch mit Revisionsprüfung
-gespeichert. Er enthält den bereits versuchten Mittwoch-Zyklus. Ein erneuter
-Aufruf derselben Woche löst keine weiteren Anrufe aus. Der nächste Mittwoch
+gespeichert. Er enthält den bereits versuchten Donnerstag-Zyklus. Ein erneuter
+Aufruf derselben Woche löst keine weiteren Anrufe aus. Der nächste Donnerstag
 ist automatisch ein neuer Zyklus; eine anhaltend kurze Liste wird dann erneut
 gemeldet. Die Wochenzuordnung verwendet das Datum in Europe/Berlin.
 
@@ -70,6 +70,9 @@ openclaw automations runs 6e6d41db-2988-4b6c-9bff-b5322527cbd2 --limit 5 --json
 Scratch nicht für einen erneuten Test löschen: Das kann in derselben Woche
 erneute Anrufe auslösen. Ein Vorschaulauf benötigt das nicht.
 ## Einrichtung am 06.10.2026
+
+Dieser Abschnitt und die Tests weiter unten beschreiben den ursprünglichen
+Mittwoch-Zeitplan. Aktuell gilt die Umstellung am Ende dieser Anleitung.
 
 Beide Plugins gebaut, Metadaten generiert und durch OpenClaw 2026.9.8 validiert.
 Alle 20 Tests erfolgreich: 13 im Anruf-Plugin einschließlich bestehender
@@ -146,3 +149,24 @@ Client-Rückmeldung vor, keine separate Hörbestätigung. Ursache der ersten
 vorübergehenden Stille weiterhin nicht gesichert; Diagnose bleibt aktiv.
 Der nächste Mittwoch beginnt einen neuen Zyklus und wird durch den heutigen
 manuellen Versuch nicht gesperrt.
+
+## Umstellung auf Donnerstag um 16 Uhr
+
+Am 06.10.2026 auf Leons Wunsch Zeitplan auf `0 16 * * 4` in Europe/Berlin
+umgestellt. Job-ID unverändert; Name und Anzeigename entsprechend angepasst.
+Nächste reguläre Ausführung: **Donnerstag, 08.10.2026, 16:00 Uhr Berlin**.
+Inhalt, Empfänger, Schwelle, persönliche Anrede und Audio-Fallback unverändert.
+
+Der Sperrzyklus beginnt jetzt jeweils mit dem Donnerstag-Datum in Europe/Berlin.
+Der bisher gespeicherte Mittwoch-Marker wurde mit Revisionsprüfung auf den
+folgenden Donnerstag verschoben (30.09. auf 01.10.). So wird durch die
+Umstellung keine zusätzliche Wiederholung des bisherigen Zyklus freigegeben;
+am 08.10. ist die neue Woche regulär frei. Ein manueller Versuch am Donnerstag
+vor 16 Uhr verbraucht weiterhin den Zyklus für die reguläre Ausführung.
+Tests für Donnerstagswechsel, Mittwoch ohne neuen Zyklus und Winterzeit ergänzt.
+TypeScript-Build, alle 14 Anruf-Plugin-Tests und native Plugin-Validierung
+erfolgreich. Vorherige Automation, Scratch und Plugin-Dateien gesichert unter
+`~/.local/share/jarvis-repairs/shopping-thursday-before-20261006T173216Z/`.
+Kein Anruf ausgelöst; Gateway nach der Codeänderung kontrolliert neu gestartet.
+Die Anleitung wurde in `EINKAUF_DONNERSTAG_ERINNERUNG.md` umbenannt;
+die Verweise in der übrigen Dokumentation wurden entsprechend aktualisiert.

@@ -48,7 +48,7 @@ export function shoppingReminderMessage(name, count) {
 export function shoppingReminderPeriod(now = new Date()) {
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
     const day = new Date(`${date}T12:00:00Z`);
-    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 4) % 7);
+    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 3) % 7);
     return day.toISOString().slice(0, 10);
 }
 export function decideInboxAlert(state, unreadCount) {
@@ -294,7 +294,7 @@ export default defineToolPlugin({
         tool({
             name: "whatsapp_weekly_shopping_reminder",
             label: "Weekly Shopping Reminder",
-            description: "Bound weekly automation only: below ten open shopping items call Leon and Annka separately with personalized audio, voice fallback for call failure. At most once per Wednesday cycle.",
+            description: "Bound weekly automation only: below ten open shopping items call Leon and Annka separately with personalized audio, voice fallback for call failure. At most once per Thursday cycle.",
             parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }) }, { additionalProperties: false }),
             factory({ api, config, toolContext }) {
                 const reminder = config.shoppingReminder;
