@@ -2,6 +2,27 @@
 
 Stand: 06.10.2026
 
+## Ergänzung vom 06.10.2026: Einkaufs-PWA angebunden und getestet
+
+Eigenes Plugin `einkaufsplaner` unter `plugins/einkaufsplaner`, auf dem Server
+unter `/home/leon/.local/share/jarvis-einkaufsplaner`. Verwendet ausschließlich
+die HTTPS-API der bestehenden App `https://app.stangeleon.de`, Konto `Jarvis`
+als normaler Benutzer in der gemeinsamen Gruppe. Standardliste **Einkaufen**.
+Listen lesen, Artikel hinzufügen und abhaken; nur aktuelle WhatsApp-Owner
+erhalten die Tools. Passwort separat in privater Serverdatei, nicht im Repo.
+Die Einkaufs-App bleibt in ihrem eigenen Repository und wurde nicht verändert.
+
+Sechs Client-Tests lokal und auf Ubuntu erfolgreich, native Plugin-Validierung
+erfolgreich. Leon bestätigt anschließend den erfolgreichen echten Einsatz;
+WhatsApp-Screenshot zeigt Lesen, Audioantwort und Abhaken von drei Bananen
+zwischen 18:57 und 18:59 Berlin. Details, Einrichtung und Grenzen:
+[EINKAUFSPLANER_ANBINDUNG.md](EINKAUFSPLANER_ANBINDUNG.md).
+
+Auch die beiden Anruf-Automationen hat Leon heute bestätigt: regulärer
+18-Uhr-Anruf erfolgreich, danach Warnanruf der stündlichen Prüfung mit neun
+ungelesenen E-Mails erfolgreich. Damit ist der tatsächliche Anruf nach der
+MeowCaller-Versionsreparatur bestätigt.
+
 ## Ergänzung vom 06.10.2026: stündliche E-Mail-Warnung
 
 Leon berichtet nach einem Tag Nutzung, dass der aktuelle Stand gut funktioniert.
@@ -22,7 +43,8 @@ Wählen an MeowCaller `Client outdated (405)`. MeowCaller aktualisiert jetzt
 vor jeder Verbindung die WhatsApp-Web-Version; realer Verbindungstest ohne
 Anruf erfolgreich, Binary auf dem Server ersetzt. Kein OpenClaw-Update.
 Scratch einmalig nach gesichertem Nichtversand wieder freigegeben, nächster
-regulärer Lauf 18:05. Noch kein bestätigter Warnanruf nach der Reparatur.
+regulärer Lauf 18:05. Leon hat diesen Warnanruf mit neun ungelesenen E-Mails
+anschließend erfolgreich bestätigt.
 Patch und genaue Belege stehen in der verlinkten Anleitung.
 
 **Ablage:** Unsere Markdown-Dokumentation liegt unter `dokumentation/`;

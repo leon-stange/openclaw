@@ -129,8 +129,11 @@ Revisionsprüfung wieder freigegeben (Revision 2 auf 3). Vorheriger Scratch
 liegt im Backup als `inbox-scratch-before-rearm.json`. Kein zusätzlicher
 manueller Automationslauf wurde gestartet. Bei weiterhin mindestens acht
 ungelesenen Mails kann der nächste reguläre Lauf um 18:05 wieder warnen.
-Ein tatsächlich klingelnder Warnanruf nach dieser Reparatur ist noch nicht
-bestätigt; der reale Verbindungstest ist erfolgreich.
+Leon hat anschließend den erfolgreichen Warnanruf der regulären stündlichen
+Prüfung mit den aktuellen neun ungelesenen E-Mails bestätigt. Damit ist der
+echte Warnanruf nach der Reparatur praktisch bestätigt. Die Nichtannahme wurde
+bei diesem Lauf nicht separat berichtet; der bereits bestätigte tägliche
+Fallback und die simulierten Tests sind davon getrennte Nachweise.
 
 ## Betrieb
 

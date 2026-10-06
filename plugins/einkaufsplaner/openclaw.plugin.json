@@ -1,0 +1,35 @@
+{
+  "id": "einkaufsplaner",
+  "name": "Jarvis Einkaufsplaner",
+  "description": "Read, add and check off items in the existing PWA as Jarvis.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "passwordFile",
+      "stateDir"
+    ],
+    "properties": {
+      "passwordFile": {
+        "type": "string",
+        "minLength": 1
+      },
+      "stateDir": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "additionalProperties": false
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "einkauf_listen_lesen",
+      "einkauf_liste_lesen",
+      "einkauf_artikel_hinzufuegen",
+      "einkauf_artikel_abhaken"
+    ]
+  }
+}

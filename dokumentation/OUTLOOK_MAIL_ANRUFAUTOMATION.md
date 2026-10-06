@@ -1,6 +1,10 @@
 # Täglicher Outlook- und E-Mail-Anruf
 
-Stand: 05.10.2026. Auf dem Ubuntu-Server per autorisiertem SSH eingerichtet.
+Stand: 06.10.2026. Auf dem Ubuntu-Server per autorisiertem SSH eingerichtet.
+
+Leon bestätigt am 06.10.2026: Der reguläre 18-Uhr-Anruf war erfolgreich.
+Damit ist auch der tatsächliche Anruf nach der MeowCaller-Versionsreparatur
+bestätigt. Historische Teststände weiter unten beschreiben den damaligen Stand.
 
 ## Ablauf
 

@@ -5,6 +5,8 @@ diesem Ordner. Die Sprachnachrichten-Dokumentation ist im Unterordner
 `sprachnachrichten` zusammengefasst.
 
 - [Erinnerungen und aktueller Projektstand](ERINNERUNGEN.md)
+- [Ideen für Jarvis im Alltag](ideen.md)
+- [Anbindung der bestehenden Einkaufs-PWA](EINKAUFSPLANER_ANBINDUNG.md)
 - [Outlook-MCP auf dem neuen Server](OUTLOOK_MCP_NEUER_SERVER.md)
 - [Täglicher Outlook- und E-Mail-Anruf um 18 Uhr](OUTLOOK_MAIL_ANRUFAUTOMATION.md)
 - [Stündliche Warnung bei vielen ungelesenen E-Mails](OUTLOOK_UNGELESEN_WARNUNG.md)

@@ -9,3 +9,7 @@ __pycache__/
 # Zugangsdaten bleiben lokal.
 .env
 *.env
+
+# Private Zugangsdaten und Auftragsprotokolle des Einkaufs-Plugins.
+plugins/einkaufsplaner/password
+plugins/einkaufsplaner/state/

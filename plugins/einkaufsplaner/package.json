@@ -1,0 +1,12 @@
+{
+  "name": "openclaw-plugin-einkaufsplaner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Use the existing Einkaufsplaner API as Jarvis.",
+  "files": ["dist", "openclaw.plugin.json"],
+  "scripts": {"build": "node build.mjs", "test": "node --test test/*.test.mjs"},
+  "dependencies": {"typebox": "^1.1.38"},
+  "peerDependencies": {"openclaw": ">=2026.9.8"},
+  "openclaw": {"extensions": ["./dist/index.js"]}
+}
