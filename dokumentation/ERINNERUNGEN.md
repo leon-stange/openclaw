@@ -1,6 +1,21 @@
 # Jarvis / OpenClaw – Erinnerungen für die Weiterarbeit
 
-Stand: 06.10.2026
+Stand: 08.10.2026
+
+## Ergänzung vom 08.10.2026: Einkaufs-Erinnerung freier formuliert
+
+Leon bestätigt den regulären Einkaufsanruf, möchte abwechslungsreichere Texte.
+Die Donnerstag-Automation liefert jetzt `reminderLeon` und `reminderAnnka`
+als frei formulierte kurze Hinweise. Persönliche Anrede und echte Artikelzahl
+setzt das Plugin fest davor. Alte Aufrufe ohne Texte behalten den bisherigen
+Text als Fallback, ebenfalls ohne WhatsApp-Kontakthinweis oder Angebot zum
+Hinzufügen von Artikeln. Auch der freie Text verzichtet darauf.
+Zeitplan, Empfänger, Zehnerschwelle, Wochensperre und
+Audio-Ersatzversand unverändert. Build, 15 Plugin-Tests und native Validierung
+erfolgreich; Server aktualisiert und Gateway neu gestartet. Scratch vor/nach
+identisch geprüft, keine Anrufe zu Testzwecken ausgelöst. Echte Audio mit den
+neuen freien Texten noch nicht bestätigt. Details:
+[EINKAUF_DONNERSTAG_ERINNERUNG.md](EINKAUF_DONNERSTAG_ERINNERUNG.md).
 
 ## Ergänzung vom 06.10.2026: Einkaufs-Erinnerung, jetzt Donnerstag
 

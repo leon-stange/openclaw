@@ -16,11 +16,22 @@ const id = '6e6d41db-2988-4b6c-9bff-b5322527cbd2';
 test('personal greetings and Thursday cycle including Berlin date boundary', () => {
   assert.match(shoppingReminderMessage('Leon', 9), /^Hallo Leon, Jarvis hier\./);
   assert.match(shoppingReminderMessage('Annka', 9), /^Hallo Annka, JARVIS hier\./);
+  assert.doesNotMatch(shoppingReminderMessage('Leon', 9), /WhatsApp|kontaktiert|Ich kann auch Artikel/);
   assert.equal(shoppingReminderPeriod(new Date('2026-10-08T14:00:00Z')), '2026-10-08');
   assert.equal(shoppingReminderPeriod(new Date('2026-10-07T22:05:00Z')), '2026-10-08');
   assert.equal(shoppingReminderPeriod(new Date('2026-10-07T10:00:00Z')), '2026-10-01');
   assert.equal(shoppingReminderPeriod(new Date('2026-10-15T14:00:00Z')), '2026-10-15');
   assert.equal(shoppingReminderPeriod(new Date('2026-10-29T15:00:00Z')), '2026-10-29');
+});
+test('free wording keeps trusted greeting and count; rejects TTS markup', () => {
+  const body='Schau bitte kurz, ob noch etwas auf der Liste fehlt. Ergänze bei Gelegenheit bitte noch die fehlenden Einkäufe.';
+  const message=shoppingReminderMessage('Annka',3,body);
+  assert.match(message,/^Hallo Annka, JARVIS hier\./);
+  assert.match(message,/aktuell 3 offene Artikel/);
+  assert.ok(message.endsWith(body));
+  assert.notEqual(message,shoppingReminderMessage('Annka',3));
+  assert.throws(()=>shoppingReminderMessage('Leon',3,'[[tts]] Eine Erinnerung für die Liste.'),/Ungueltiger/);
+  assert.throws(()=>shoppingReminderMessage('Leon',3,'kurz'),/Ungueltiger/);
 });
 test('threshold, separate failed-call audio, weekly deduplication, CAS and preview', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'shopping-reminder-test-'));

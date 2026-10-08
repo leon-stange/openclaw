@@ -1,6 +1,6 @@
 # Einkaufsliste: Erinnerung am Donnerstag
 
-Stand: 06.10.2026. Aktueller Ablauf: jeden Donnerstag exakt 16:00 Uhr
+Stand: 08.10.2026. Aktueller Ablauf: jeden Donnerstag exakt 16:00 Uhr
 Europe/Berlin die **offenen** Artikel der Liste **Einkaufen** prüfen.
 Erledigte Artikel zählen nicht, Mengen zählen nicht als mehrere Artikel.
 Bei zehn oder mehr offenen Artikeln keine Nachricht und kein Anruf.
@@ -14,14 +14,25 @@ Nur zwei Tools: `einkauf_liste_lesen` und `whatsapp_weekly_shopping_reminder`.
 
 ## Nachricht und Empfänger
 
+Seit dem 08.10.2026 formuliert der Automationsagent den eigentlichen Hinweis
+frei in zwei bis drei kurzen Sätzen, separat für Leon und Annka. Die Tool-Felder
+`reminderLeon` und `reminderAnnka` erlauben je 20 bis 700 Zeichen. Der Prompt
+fordert abwechslungsreiche, natürliche Formulierungen mit persönlichem „du“,
+ohne Vorwürfe oder erfundene fehlende Produkte. Inhalt bleibt: Liste scheinbar
+noch nicht vollständig, bitte prüfen und ergänzen. Der Hinweis auf WhatsApp-Kontakt
+und das Angebot zum Hinzufügen von Artikeln entfallen auf Wunsch vom 08.10.2026,
+auch im festen Ersatztext. Anrede und verifizierte Artikelzahl setzt das Plugin selbst
+davor. Ungültige Texte und TTS-Markup werden vor Versand abgewiesen. Falls ein
+alter Aufruf keine Texte liefert, bleibt die bisherige Formulierung als Fallback.
+Die freie Formulierung garantiert keine einzigartige Wortwahl bei jedem Lauf.
+
 Persönliche Anreden entsprechend den vorhandenen Servervorgaben:
 
 - Leon: „Hallo Leon, Jarvis hier.“
 - Annka: „Hallo Annka, JARVIS hier.“
 
 Danach nennt Jarvis die Zahl offener Artikel und erklärt, dass die Liste
-scheinbar noch nicht vollständig ist und ausgefüllt werden müsste. Er bietet
-an, über WhatsApp kontaktiert zu werden und Artikel hinzuzufügen. Die konkrete
+scheinbar noch nicht vollständig ist und ausgefüllt werden müsste. Die konkrete
 Anrede ist je Empfänger anders; es werden zwei separate Audios erzeugt.
 Leon ist fest der konfigurierte authorizedCaller, Annka wird aus dem bereits
 zugelassenen Kontakt Annka genommen. Das Modell liefert keine Telefonnummer.
@@ -170,3 +181,16 @@ erfolgreich. Vorherige Automation, Scratch und Plugin-Dateien gesichert unter
 Kein Anruf ausgelöst; Gateway nach der Codeänderung kontrolliert neu gestartet.
 Die Anleitung wurde in `EINKAUF_DONNERSTAG_ERINNERUNG.md` umbenannt;
 die Verweise in der übrigen Dokumentation wurden entsprechend aktualisiert.
+
+## Freiere Formulierung am 08.10.2026
+
+Leon bestätigt den heutigen regulären Einkaufsanruf, wünscht aber variablere
+Formulierungen. Plugin um die beiden optionalen Erinnerungstexte ergänzt und
+Automationsprompt entsprechend geändert. TypeScript-Build, alle 15
+Anruf-Plugin-Tests und native Plugin-Validierung erfolgreich. Code und Prompt
+auf dem Server aktualisiert, Gateway kontrolliert neu gestartet. Zeitplan,
+Tool-Freigabe, Zustellung und Scratch unverändert geprüft. Kein weiterer Anruf
+ausgelöst und keine Wochensperre zurückgesetzt. Die freiere Formulierung ist
+noch nicht in einem echten Anruf von Leon bestätigt.
+Sicherung vor der Änderung:
+`~/.local/share/jarvis-repairs/shopping-variable-wording-20261008T142117Z/`.

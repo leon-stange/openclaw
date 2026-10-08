@@ -42,8 +42,14 @@ const configSchema = Type.Object({
     maxCallsPer10Minutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })),
 }, { additionalProperties: false });
 const recentCalls = [];
-export function shoppingReminderMessage(name, count) {
-    return `Hallo ${name}, ${name === "Annka" ? "JARVIS" : "Jarvis"} hier. Ich habe festgestellt, dass auf eurer Einkaufsliste Einkaufen erst ${count} offene Artikel stehen. Die Liste scheint noch nicht vollständig zu sein und müsste noch ausgefüllt werden. Wenn ihr möchtet, kontaktiert mich per WhatsApp. Ich kann auch Artikel auf die Liste schreiben.`;
+export function shoppingReminderMessage(name, count, reminder) {
+    if (reminder !== undefined) {
+        const text = reminder.trim();
+        if (text.length < 20 || text.length > 700 || /\[\[|[<>]/.test(text))
+            throw new Error("Ungueltiger Erinnerungstext.");
+        return `Hallo ${name}, ${name === "Annka" ? "JARVIS" : "Jarvis"} hier. Auf eurer Einkaufsliste Einkaufen stehen aktuell ${count} offene Artikel. ${text}`;
+    }
+    return `Hallo ${name}, ${name === "Annka" ? "JARVIS" : "Jarvis"} hier. Ich habe festgestellt, dass auf eurer Einkaufsliste Einkaufen erst ${count} offene Artikel stehen. Die Liste scheint noch nicht vollständig zu sein und müsste noch ausgefüllt werden.`;
 }
 export function shoppingReminderPeriod(now = new Date()) {
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
@@ -295,7 +301,10 @@ export default defineToolPlugin({
             name: "whatsapp_weekly_shopping_reminder",
             label: "Weekly Shopping Reminder",
             description: "Bound weekly automation only: below ten open shopping items call Leon and Annka separately with personalized audio, voice fallback for call failure. At most once per Thursday cycle.",
-            parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }) }, { additionalProperties: false }),
+            parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }),
+                reminderLeon: Type.Optional(Type.String({ minLength: 20, maxLength: 700 })),
+                reminderAnnka: Type.Optional(Type.String({ minLength: 20, maxLength: 700 })),
+            }, { additionalProperties: false }),
             factory({ api, config, toolContext }) {
                 const reminder = config.shoppingReminder;
                 if (!reminder || !isDailyBriefingSession(toolContext.sessionKey, toolContext.agentId, reminder.automationId))
@@ -306,10 +315,13 @@ export default defineToolPlugin({
                 return {
                     name: "whatsapp_weekly_shopping_reminder", label: "Weekly Shopping Reminder",
                     description: "Use the verified count of open items on Einkaufen. No call at ten or more. Calls fixed Leon and Annka, each once per weekly cycle. Never invent zero on an API failure.",
-                    parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }) }, { additionalProperties: false }),
+                    parameters: Type.Object({ openCount: Type.Integer({ minimum: 0, maximum: 1000000 }),
+                        reminderLeon: Type.Optional(Type.String({ minLength: 20, maxLength: 700 })),
+                        reminderAnnka: Type.Optional(Type.String({ minLength: 20, maxLength: 700 })),
+                    }, { additionalProperties: false }),
                     executionMode: "sequential",
                     async execute(_id, raw, signal) {
-                        const { openCount } = raw;
+                        const { openCount, reminderLeon, reminderAnnka } = raw;
                         if (!Number.isSafeInteger(openCount) || openCount < 0)
                             throw new Error("Ungueltiger Artikelzaehler.");
                         const assertCurrent = toolContext.assertInvocationCurrent;
@@ -321,7 +333,7 @@ export default defineToolPlugin({
                         if (state.version !== 1)
                             throw new Error("Ungueltiger Erinnerungszustand.");
                         const wouldAlert = openCount < 10 && state.attemptedPeriod !== period;
-                        const messages = [shoppingReminderMessage("Leon", openCount), shoppingReminderMessage("Annka", openCount)];
+                        const messages = [shoppingReminderMessage("Leon", openCount, reminderLeon), shoppingReminderMessage("Annka", openCount, reminderAnnka)];
                         if (reminder.dryRun)
                             return { content: [{ type: "text", text: "Vorschau ohne Anruf, Versand oder Zustandsaenderung." }],
                                 details: { dryRun: true, openCount, wouldAlert, messages } };
