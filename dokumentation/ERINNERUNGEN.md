@@ -2,6 +2,23 @@
 
 Stand: 09.10.2026
 
+## Aufgabenplugin vom 09.10.2026
+
+Eigenes Plugin `aufgaben`: Anlegen, Anzeigen, Erledigen, Löschen und Erinnerungen
+verschieben, persönliche Aufgaben für Leon/Annka und ausdrücklich gemeinsame
+Aufgaben. Ohne Uhrzeit **15:00 Europe/Berlin**, explizite Uhrzeit oder relative
+Minuten haben Vorrang. Anruf mit identischer Ersatz-Audio bei Nichtannahme oder
+technischem Fehler. Versuch vor Versand dauerhaft markieren, danach keine
+automatische Wiederholung; Aufgabe bleibt offen, bis erledigt oder verschoben.
+Modellfreier nativer Skriptjob `022d4fd4-9aef-41cc-83fa-f167272c096d`, jede Minute,
+nur `aufgaben_erinnerungen_pruefen`. Persönliche Zuordnung aus vertrauenswürdigem
+WhatsApp-Absender und vorhandenen LID-Mappings. `session.dmScope=per-channel-peer`
+trennt künftig die Chatverläufe; alte gemeinsame Historie wird nicht übernommen.
+Aufgaben privat im Serverzustand, niemals im Repository. Fünf Aufgaben-Tests und
+18 bestehende Anruf-Tests sowie beide nativen Validierungen bestanden; nativer
+Vorschaulauf erfolgreich. Keine echten Testanrufe. Regeln in AGENTS.md ergänzt.
+Details: [AUFGABEN_PLUGIN.md](AUFGABEN_PLUGIN.md).
+
 ## Ergänzung vom 09.10.2026: Termin-Hinweis nur an Leon
 
 Neue Automation `ea75c591-2bee-4dcd-98bd-96d9a9395e83`, Cron `30 * * * *`,

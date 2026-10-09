@@ -1,0 +1,85 @@
+{
+  "id": "aufgaben",
+  "name": "Jarvis Aufgaben",
+  "description": "Personal and shared tasks, Berlin 15:00 default call reminders with voice fallback.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "stateDir",
+      "callModule",
+      "automationId",
+      "members"
+    ],
+    "properties": {
+      "stateDir": {
+        "type": "string",
+        "minLength": 1
+      },
+      "callModule": {
+        "type": "string",
+        "minLength": 1
+      },
+      "automationId": {
+        "type": "string",
+        "pattern": "^[a-f0-9-]{36}$"
+      },
+      "members": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "phone",
+            "senderIds"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z]+$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "phone": {
+              "type": "string",
+              "pattern": "^\\+[1-9]\\d{7,14}$"
+            },
+            "senderIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "dryRun": {
+        "type": "boolean"
+      }
+    },
+    "additionalProperties": false
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "aufgaben_zeit",
+      "aufgaben_lesen",
+      "aufgaben_anlegen",
+      "aufgaben_erinnerung_verschieben",
+      "aufgaben_erledigen",
+      "aufgaben_loeschen",
+      "aufgaben_erinnerungen_pruefen"
+    ]
+  }
+}

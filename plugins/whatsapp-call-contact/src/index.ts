@@ -298,7 +298,7 @@ async function encodeVoiceNote(inputPath: string, outputPath: string, signal?: A
   });
 }
 
-async function deliverInboxAlert(params: {
+export async function deliverInboxAlert(params: {
   config: Static<typeof configSchema>;
   runtimeConfig: Parameters<typeof sendDurableMessageBatch>[0]["cfg"];
   message: string;

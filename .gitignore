@@ -13,3 +13,4 @@ __pycache__/
 # Private Zugangsdaten und Auftragsprotokolle des Einkaufs-Plugins.
 plugins/einkaufsplaner/password
 plugins/einkaufsplaner/state/
+plugins/aufgaben/state/

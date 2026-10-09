@@ -248,7 +248,7 @@ async function encodeVoiceNote(inputPath, outputPath, signal) {
         child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`Audio-Konvertierung fehlgeschlagen (Exit ${code}): ${stderr}`)));
     });
 }
-async function deliverInboxAlert(params) {
+export async function deliverInboxAlert(params) {
     const { config, signal, assertCurrent } = params;
     signal?.throwIfAborted();
     assertCurrent?.();

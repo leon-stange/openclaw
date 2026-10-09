@@ -18,6 +18,12 @@ Sprachnachrichten für unterwegs und Anrufe für ausgewählte wichtige Hinweise.
 
 ## 1. Aufgaben und Erinnerungen per Sprache
 
+**Erste Version umgesetzt am 09.10.2026:** Eigenes Aufgabenplugin für persönliche
+und gemeinsame Aufgaben. Ohne Uhrzeit gilt 15 Uhr Berlin; Erinnerungen erfolgen
+per Anruf und bei erfolglosem Anruf als dieselbe WhatsApp-Audio. Aufgaben lesen,
+anlegen, erledigen, löschen und Erinnerungen verschieben. Wiederkehrende Aufgaben
+bleiben ein späterer Ausbau. Details: [AUFGABEN_PLUGIN.md](AUFGABEN_PLUGIN.md).
+
 **Beispiel:** „Jarvis, erinnere mich morgen um 17 Uhr daran, das Paket abzuholen.“
 Oder: „Ich muss diese Woche noch einen Werkstatttermin vereinbaren.“
 
