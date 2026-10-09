@@ -6,6 +6,7 @@ import path from "node:path";
 import { Type, type Static } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
 import { sendDurableMessageBatch } from "openclaw/plugin-sdk/channel-outbound";
+import { calendarReminderParameters, planCalendarReminders, type CalendarEvent, type CalendarReminderState } from "./calendar-reminder.js";
 
 const e164Pattern = "^\\+[1-9]\\d{7,14}$";
 
@@ -29,6 +30,10 @@ const configSchema = Type.Object(
       dryRun: Type.Optional(Type.Boolean()),
     }, { additionalProperties: false })),
     shoppingReminder: Type.Optional(Type.Object({
+      automationId: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
+      dryRun: Type.Optional(Type.Boolean()),
+    }, { additionalProperties: false })),
+    calendarReminder: Type.Optional(Type.Object({
       automationId: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
       dryRun: Type.Optional(Type.Boolean()),
     }, { additionalProperties: false })),
@@ -357,6 +362,45 @@ export default defineToolPlugin({
     "Lets the OpenClaw owner call only pre-approved WhatsApp contacts. Audio is synthesized with ElevenLabs and delivered by MeowCaller.",
   configSchema,
   tools: (tool) => [
+    tool({
+      name: "whatsapp_upcoming_calendar_reminder",
+      label: "Upcoming Calendar Text Reminder",
+      description: "Bound calendar automation only: send fixed Leon a text for new timed events starting within two hours. No calls or audio. Persistent occurrence/start deduplication.",
+      parameters: calendarReminderParameters,
+      factory({ api, config, toolContext }) {
+        const reminder = config.calendarReminder;
+        if (!reminder || !isDailyBriefingSession(toolContext.sessionKey, toolContext.agentId, reminder.automationId)) return null;
+        return {
+          name: "whatsapp_upcoming_calendar_reminder", label: "Upcoming Calendar Text Reminder",
+          description: "Pass verified Outlook occurrence IDs and absolute start timestamps with timezone. Skip all-day, cancelled and declined events. Empty events are allowed only after a successful complete calendar fetch.",
+          parameters: calendarReminderParameters,
+          executionMode: "sequential" as const,
+          async execute(_id: string, raw: unknown, signal?: AbortSignal) {
+            const assertCurrent = toolContext.assertInvocationCurrent;
+            signal?.throwIfAborted(); assertCurrent?.();
+            const scratch = await inboxScratch(reminder.automationId, undefined, signal);
+            const state: CalendarReminderState = scratch.scratch ? JSON.parse(scratch.scratch.content) : { version: 1, attempts: [] };
+            const plan = planCalendarReminders((raw as { events: CalendarEvent[] }).events, state);
+            if (reminder.dryRun) return { content: [{ type: "text" as const, text: "Vorschau ohne Versand oder Zustandsaenderung." }],
+              details: { dryRun: true, wouldSend: plan.pending.length, text: plan.text } };
+            // Claim before handoff: ambiguous delivery must never cause duplicate alerts.
+            signal?.throwIfAborted(); assertCurrent?.();
+            const saved = await inboxScratch(reminder.automationId, { content: JSON.stringify(plan.state), revision: scratch.currentRevision }, signal);
+            if (!saved.ok) throw new Error("Termin-Erinnerungszustand nicht gespeichert; kein Versand.");
+            if (!plan.pending.length) return { content: [{ type: "text" as const, text: "Keine neuen Termine im Zwei-Stunden-Fenster; kein Versand." }], details: { sent: false, count: 0 } };
+            signal?.throwIfAborted(); assertCurrent?.();
+            const intent = createHash("sha256").update(plan.pending.map(e => e.key).sort().join(":" )).digest("hex");
+            const sent = await sendDurableMessageBatch({ cfg: toolContext.getRuntimeConfig?.() ?? toolContext.runtimeConfig ?? api.config,
+              channel: "whatsapp", to: config.authorizedCaller, accountId: config.accountId ?? "default",
+              payloads: [{ text: plan.text }], signal, assertDirectAdapterHandoff: assertCurrent,
+              deliveryIntentId: `calendar-reminder:${reminder.automationId}:${intent}`, durability: "required" });
+            if (sent.status !== "sent" || !sent.receipt.primaryPlatformMessageId) throw new Error("Termin-Hinweis nicht bestaetigt; keine automatische Wiederholung.");
+            return { content: [{ type: "text" as const, text: "Termin-Hinweis als WhatsApp-Text an Leon versendet." }],
+              details: { sent: true, count: plan.pending.length, messageId: sent.receipt.primaryPlatformMessageId } };
+          },
+        };
+      },
+    }),
     tool({
       name: "whatsapp_weekly_shopping_reminder",
       label: "Weekly Shopping Reminder",

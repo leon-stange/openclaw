@@ -1,6 +1,22 @@
 # Jarvis / OpenClaw – Erinnerungen für die Weiterarbeit
 
-Stand: 08.10.2026
+Stand: 09.10.2026
+
+## Ergänzung vom 09.10.2026: Termin-Hinweis nur an Leon
+
+Neue Automation `ea75c591-2bee-4dcd-98bd-96d9a9395e83`, Cron `30 * * * *`,
+Europe/Berlin: Outlook-Standardkalender für die nächsten zwei Stunden lesen.
+Neue zeitgebundene Termine ausschließlich als WhatsApp-Text an Leon melden,
+kein Anruf, keine Audio und keine Nachricht an Annka. Ganztägige, abgesagte,
+abgelehnte und bereits begonnene Termine auslassen. Hash aus Instanz-ID und
+Startzeit im privaten Scratch unterdrückt Wiederholungen; geänderte Startzeiten
+und weitere Serienvorkommen können erneut gemeldet werden. Sperre vor Versand
+mit Revisionsprüfung setzen, bei unklarem Versand nicht automatisch wiederholen.
+Nur Kalenderansicht und das neue feste Texttool im Automationskontext erlaubt.
+18 Plugin-Tests, Build und native Validierung erfolgreich. Echter Outlook-Abruf
+im Vorschaumodus erfolgreich: korrektes UTC-Zeitfenster, alle Seiten, null
+Termine und Erinnerungstool einmal erreicht, kein Versand und keine Sperre.
+Details: [KALENDER_WHATSAPP_ERINNERUNG.md](KALENDER_WHATSAPP_ERINNERUNG.md).
 
 ## Ergänzung vom 08.10.2026: Einkaufs-Erinnerung freier formuliert
 
