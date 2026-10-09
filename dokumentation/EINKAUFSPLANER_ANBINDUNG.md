@@ -79,6 +79,41 @@ Nur der gebundene Wochenjob darf `einkauf_liste_lesen` für offene Artikel auf
 Einkaufen verwenden. Artikel hinzufügen oder abhaken bleibt den Owner-Chats
 vorbehalten. Details: [EINKAUF_DONNERSTAG_ERINNERUNG.md](EINKAUF_DONNERSTAG_ERINNERUNG.md).
 
+## Monatsausgaben aus Kassenbons
+
+Seit 09.10.2026 kann Jarvis mit `einkauf_monatsausgaben_lesen` den Monatsbetrag
+der in der PWA erfassten Kassenbons lesen. Beispiele:
+
+> Wie viel haben wir diesen Monat für Einkäufe ausgegeben?
+
+> Was haben wir im September 2026 ausgegeben?
+
+Ohne Parameter gilt der aktuelle Monat in **Europe/Berlin**. Für einen anderen
+Monat verwendet das Tool `month` im Format `YYYY-MM`. Es liest alle Bons der
+Jarvis-Gruppe über **GET /api/receipts** und wählt wie die PWA nach dem Kaufdatum
+aus. Die Summe wird in Cent berechnet und als Eurobetrag ausgegeben, zusammen
+mit Monat und Anzahl der Bons. Es gibt keinen eigenen Monatssummen-Endpunkt.
+
+Die Summe umfasst jeweils den gesamten Bon. Sie ist daher eine Aussage über
+die erfassten Einkaufskosten, keine Analyse ausschließlich von Lebensmitteln.
+Jarvis soll sie als „laut euren erfassten Kassenbons“ einordnen. Bonbilder,
+Notizen und Einzelpositionen werden nicht benötigt; Bons werden weder angelegt
+noch verändert oder gelöscht. Zugriff nur für WhatsApp-Owner, die bestehende
+Wochenautomation erhält dieses Tool nicht. Bei API- oder Datenfehlern keine
+erfundene Nullsumme und keine Übernahme alter Chatbeträge.
+
+**API-Prüfung am 09.10.2026:** drei Bons mit Kaufdatum im September 2026 ergeben
+**138,80 €**. Im aktuellen Monat Oktober 2026 sind bislang keine Bons erfasst,
+also **0,00 €**. Maßgeblich ist das Kaufdatum, nicht der letzte Monat mit Bons.
+Der separate PWA-Quellcode bleibt unverändert. Leon bestätigt am 09.10.2026,
+dass die Abfrage über WhatsApp funktioniert.
+
+13 Plugin-Tests inklusive drei neuer Kassenbon-Tests bestanden. Geprüft wurden
+Monatsgrenzen in Berlin, Cent-Summen, ungültige Daten, Neuanmeldung nach
+Sitzungsablauf, Fehlerbehandlung und Zugriffsbeschränkungen. Build und native
+OpenClaw-Validierung erfolgreich; Plugin und Agentenregeln auf dem Server
+aktiviert. Bestehende Automationszeitpläne und Zustellregeln bleiben erhalten.
+
 ## Passwort hinterlegen und aktivieren
 
 Auf dem Ubuntu-Server im normalen interaktiven SSH-Terminal ausführen:

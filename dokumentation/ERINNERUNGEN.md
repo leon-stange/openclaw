@@ -2,6 +2,21 @@
 
 Stand: 09.10.2026
 
+## Monatsausgaben aus Kassenbons vom 09.10.2026
+
+Einkaufsplugin um `einkauf_monatsausgaben_lesen` ergänzt. Liest GET /api/receipts
+mit dem bestehenden Jarvis-Konto und summiert die Gesamtbeträge der gemeinsamen
+Gruppe nach Kaufdatum in Cent. Ohne `month` gilt der aktuelle Monat in
+Europe/Berlin; andere Monate explizit als YYYY-MM. Nur WhatsApp-Owner, keine
+Bonänderungen oder Bildabrufe; Wochenautomation unverändert. Betrag umfasst
+ganze Bons, keine gesonderte Lebensmittelanalyse. Fehler niemals als null Euro
+ausgeben. 13 Tests, Build und native Validierung erfolgreich; Server aktiviert.
+API-Probe: drei Bons im September 2026, zusammen 138,80 €; Oktober 2026 bislang
+keine Bons, 0,00 €. Leon bestätigt am 09.10.2026 die funktionierende
+WhatsApp-Abfrage.
+Backup: `~/.local/share/jarvis-repairs/receipt-monthly-total-20261009T083244Z/`.
+Details: [EINKAUFSPLANER_ANBINDUNG.md](EINKAUFSPLANER_ANBINDUNG.md).
+
 ## Essensplan-Lesen vom 09.10.2026
 
 Einkaufsplugin um `einkauf_essensplan_lesen` ergänzt. Liest ausschließlich aktive

@@ -105,6 +105,19 @@ export class ShoppingClient {
       ({ id, name, weekday, information, bulletPoints }));
   }
 
+  async receipts(signal, assertCurrent) {
+    if (!this.cookie) await this.login(signal, assertCurrent);
+    let result;
+    try { result = await this.request('/receipts', { signal, assertCurrent }); }
+    catch (error) {
+      if (this.cookie) throw error;
+      await this.login(signal, assertCurrent);
+      result = await this.request('/receipts', { signal, assertCurrent });
+    }
+    if (!Array.isArray(result.data.receipts)) throw new Error('Kassenbon-Antwort ungueltig; Ausgaben nicht verlaesslich berechenbar.');
+    return result.data.receipts.map(({ id, purchaseDate, totalAmount }) => ({ id, purchaseDate, totalAmount }));
+  }
+
   async mutate(toolCallId, route, body, signal, assertCurrent) {
     if (typeof toolCallId !== 'string' || !toolCallId) throw new Error('Auftrags-ID fehlt.');
     signal?.throwIfAborted(); assertCurrent?.();
