@@ -81,6 +81,30 @@ export class ShoppingClient {
     return data;
   }
 
+  async meals(signal, assertCurrent) {
+    if (!this.cookie) await this.login(signal, assertCurrent);
+    let result;
+    try { result = await this.request('/meals', { signal, assertCurrent }); }
+    catch (error) {
+      if (this.cookie) throw error;
+      await this.login(signal, assertCurrent);
+      result = await this.request('/meals', { signal, assertCurrent });
+    }
+    const days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    if (!Array.isArray(result.data.meals) || result.data.meals.some(m =>
+      !m || typeof m.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(m.id) ||
+      typeof m.name !== 'string' || !m.name.trim() || m.name.length > 150 ||
+      !(m.weekday === null || days.includes(m.weekday)) ||
+      !(m.information === null || typeof m.information === 'string' && m.information.length <= 500) ||
+      !Array.isArray(m.bulletPoints) || m.bulletPoints.length > 12 ||
+      m.bulletPoints.some(p => typeof p !== 'string' || p.length > 120) ||
+      m.archivedAt !== null || m.cookedAt !== null)) {
+      throw new Error('Essensplan-Antwort ungueltig; keine verlaessliche Zusammenfassung moeglich.');
+    }
+    return result.data.meals.map(({ id, name, weekday, information, bulletPoints }) =>
+      ({ id, name, weekday, information, bulletPoints }));
+  }
+
   async mutate(toolCallId, route, body, signal, assertCurrent) {
     if (typeof toolCallId !== 'string' || !toolCallId) throw new Error('Auftrags-ID fehlt.');
     signal?.throwIfAborted(); assertCurrent?.();

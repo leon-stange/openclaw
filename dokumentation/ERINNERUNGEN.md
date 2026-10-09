@@ -2,6 +2,19 @@
 
 Stand: 09.10.2026
 
+## Essensplan-Lesen vom 09.10.2026
+
+Einkaufsplugin um `einkauf_essensplan_lesen` ergänzt. Liest ausschließlich aktive
+Gerichte der Jarvis-Gruppe über GET /api/meals, inklusive Wochentag, Hinweise
+und Stichpunkte. Keine Essensplan-Schreibtools. Für „diese Woche noch“ heutige
+und folgende Wochentage zusammenfassen, undatierte Gerichte separat; PWA hat
+keine Kalenderdaten oder Kalenderwochen, keine Zuordnung erfinden. Zugriff nur
+für WhatsApp-Owner; Wochenautomation weiterhin ausschließlich Listen-Lesen.
+Zehn Tests, Syntaxprüfung, Build, native Validierung und echte API-Probe erfolgreich.
+Leon bestätigt am 09.10.2026 den erfolgreichen Essensplan-Abruf über WhatsApp.
+Separates PWA-Projekt unverändert. Details:
+[EINKAUFSPLANER_ANBINDUNG.md](EINKAUFSPLANER_ANBINDUNG.md).
+
 ## Aufgabenplugin vom 09.10.2026
 
 Eigenes Plugin `aufgaben`: Anlegen, Anzeigen, Erledigen, Löschen und Erinnerungen

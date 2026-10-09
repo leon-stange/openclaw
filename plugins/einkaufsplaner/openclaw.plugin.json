@@ -39,6 +39,7 @@
   },
   "contracts": {
     "tools": [
+      "einkauf_essensplan_lesen",
       "einkauf_listen_lesen",
       "einkauf_liste_lesen",
       "einkauf_artikel_hinzufuegen",
