@@ -184,3 +184,18 @@ auf `main`. Build, sechs Backend-/Logiktests, sechs Browsertests und Docker-
 Produktionsbuild erfolgreich. Die Dashboard-README enthält den vollständigen
 Start- und Betriebsablauf, Passwortwiederherstellung sowie den Arbeitsstand
 zum Weiterarbeiten. Lokale Zugangsdaten und das Datenvolume bleiben vor Ort.
+
+### Nachtrag: Mobile Scrollposition
+
+Dashboard-Commit: [b8d7ffe](https://github.com/leon-stange/jarvis-dashboard/commit/b8d7ffe).
+Die mobile Ansicht startet beim Laden und Neuladen oben, auch nach der
+Zugangsprüfung. Unter 1000 px wird die Browser-Scrollwiederherstellung deaktiviert
+und die Seitenposition beim Einblenden des Dashboards zurückgesetzt. Der Chat
+scrollt nur noch innerhalb seiner Karte zur letzten Nachricht und verschiebt
+nicht mehr die gesamte Seite.
+
+README und Changelog im Dashboard sind ergänzt. Build und alle sechs
+Dashboard-Browsertests bestanden, einschließlich der neuen Regression für langen
+Chatverlauf, verzögerte Zugangsprüfung und Neuladen nach Herunterscrollen.
+Benutzerverwaltungstest, Backendtests und Docker-Produktionsbuild wurden bei
+dieser Korrektur nicht erneut ausgeführt; deren letzter Prüfstand steht oben.
